@@ -179,16 +179,24 @@ const CoolPairGame: React.FC<CoolPairGameProps> = ({ data, onComplete, onExit })
             onRestart={setupGame}
             onExit={onExit}
             hideScore={true}
-            headerContent={<div className="font-mono text-white/90 text-sm font-bold bg-white/20 px-2 py-0.5 rounded-md flex items-center gap-1">⏱ {formatTime(timeLeft)}</div>}
+            headerContent={
+                <div className="font-mono text-brand-blue text-sm font-bold bg-white px-3 py-1 rounded-full flex items-center gap-1 shadow-sm border border-brand-blue/20">
+                    ⏱ {formatTime(timeLeft)}
+                </div>
+            }
         >
-            <div className="h-full w-full flex flex-col items-center justify-between p-2 pt-4 pb-6 overflow-hidden">
+            <div className="h-full w-full flex flex-col items-center justify-center p-4 bg-gradient-to-b from-brand-lightBlue to-blue-100 overflow-hidden relative">
+                {/* Decorative Background Elements */}
+                <div className="absolute top-10 left-10 w-32 h-32 bg-indigo-200 rounded-full blur-3xl opacity-30 animate-pulse" />
+                <div className="absolute bottom-20 right-20 w-40 h-40 bg-pink-200 rounded-full blur-3xl opacity-30 animate-pulse delay-1000" />
+
                 {/* Cards Grid */}
-                <div className={`grid ${gridCols} gap-2 w-full max-w-[400px] flex-1 content-center justify-items-center`}>
+                <div className={`grid ${gridCols} gap-3 w-full max-w-[500px] z-10`}>
                     {cards.map((card, idx) => (
                         <motion.div
                             key={card.uniqueId}
                             initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: card.isMatched ? 0.9 : 1, opacity: card.isMatched ? 0.5 : 1 }}
+                            animate={{ scale: card.isMatched ? 0.95 : 1, opacity: card.isMatched ? 0.6 : 1 }}
                             whileTap={!card.isFlipped && !card.isMatched ? { scale: 0.95 } : {}}
                             onClick={() => handleCardClick(idx)}
                             className="w-full aspect-square perspective-1000 relative"
@@ -197,48 +205,50 @@ const CoolPairGame: React.FC<CoolPairGameProps> = ({ data, onComplete, onExit })
                                 w-full h-full relative transition-all duration-500 preserve-3d cursor-pointer
                                 ${card.isFlipped ? 'rotate-y-180' : ''}
                             `}>
-                                {/* Front (Hidden) */}
+                                {/* Front (Hidden / Card Back) */}
                                 <div className={`
-                                    absolute inset-0 bg-white rounded-xl shadow-sm border-b-4 border-slate-200
-                                    flex items-center justify-center backface-hidden group hover:border-brand-blue/50
+                                    absolute inset-0 rounded-2xl shadow-lg border-b-4 border-indigo-700
+                                    flex items-center justify-center backface-hidden group
+                                    bg-gradient-to-br from-indigo-500 to-purple-600
                                     ${card.isFlipped ? 'hidden-face' : ''}
                                 `}>
-                                    <span className="text-3xl font-black text-brand-lightBlue opacity-50 select-none">?</span>
+                                    <span className="text-4xl font-black text-white/30 select-none group-hover:scale-110 transition-transform">?</span>
                                 </div>
 
-                                {/* Back (Revealed) */}
+                                {/* Back (Revealed / Content) */}
                                 <div className={`
-                                    absolute inset-0 bg-white rounded-xl shadow-md border-2 
-                                    ${card.isMatched ? 'border-green-500 ring-2 ring-green-100' : 'border-brand-blue'}
+                                    absolute inset-0 bg-white rounded-2xl shadow-xl border-2 
+                                    ${card.isMatched ? 'border-green-500 ring-4 ring-green-100' : 'border-indigo-100'}
                                     flex items-center justify-center rotate-y-180 backface-hidden p-1
                                     ${card.isFlipped || card.isMatched ? '' : 'hidden-face'}
                                 `}>
-                                    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                                    <div className="w-full h-full flex items-center justify-center overflow-hidden relative p-1">
                                         {card.type === 'image' ? (
                                             <>
                                                 <img
                                                     src={card.content}
                                                     alt="match"
-                                                    className="w-full h-full object-cover rounded-lg"
+                                                    className="w-full h-full object-contain rounded-lg"
                                                     onError={(e) => {
                                                         e.currentTarget.style.display = 'none'
-                                                        // Show fallback text
                                                         const fallback = e.currentTarget.parentElement?.querySelector('.fallback-text')
                                                         if (fallback) fallback.classList.remove('hidden')
                                                     }}
                                                 />
-                                                <span className="fallback-text hidden text-xs font-bold text-slate-700 text-center leading-tight select-none break-words px-1 absolute inset-0 flex items-center justify-center">
+                                                <span className="fallback-text hidden text-[10px] font-bold text-slate-700 text-center leading-tight select-none break-words px-1 absolute inset-0 flex items-center justify-center">
                                                     {card.fallbackText}
                                                 </span>
                                             </>
                                         ) : (
-                                            <span className="text-xs font-bold text-slate-700 text-center leading-tight select-none break-words px-1">{card.content}</span>
+                                            <span className="text-xs sm:text-sm font-bold text-slate-700 text-center leading-tight select-none break-words line-clamp-3">
+                                                {card.content}
+                                            </span>
                                         )}
                                     </div>
 
                                     {card.isMatched && (
-                                        <div className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full p-0.5 shadow-sm">
-                                            <Check size={10} strokeWidth={4} />
+                                        <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1 shadow-md animate-bounce">
+                                            <Check size={14} strokeWidth={4} />
                                         </div>
                                     )}
                                 </div>
@@ -248,9 +258,9 @@ const CoolPairGame: React.FC<CoolPairGameProps> = ({ data, onComplete, onExit })
                 </div>
 
                 {/* Bottom Info Bar: Score */}
-                <div className="w-full max-w-[400px] bg-white rounded-2xl p-3 shadow-lg border border-slate-100 flex items-center justify-between mt-2 shrink-0 z-10">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Current Score</span>
-                    <span className="text-2xl font-black text-brand-orange">{score}</span>
+                <div className="w-full max-w-[400px] bg-white/80 backdrop-blur-sm rounded-full p-2 px-6 shadow-xl border border-white/50 flex items-center justify-between mt-8 z-10">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Current Score</span>
+                    <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-brand-orange to-red-500">{score}</span>
                 </div>
             </div>
         </GameContainer>

@@ -66,15 +66,14 @@ const StudyScreen = () => {
     }
 
     const resetPlan = () => {
-        if (confirm('Bạn có chắc muốn thiết lập lại lộ trình học không?')) {
-            localStorage.removeItem('engo_study_plan_done')
-            setHasPlan(false)
-        }
+        // if (confirm('Bạn có chắc muốn thiết lập lại lộ trình học không?')) {
+        //     localStorage.removeItem('engo_study_plan_done')
+        //     setHasPlan(false)
+        navigate('/app/study/setup')
+        // }
     }
 
-    if (!hasPlan) {
-        return <StudyPlanSetup onComplete={handlePlanComplete} />
-    }
+
 
     const handleLessonPress = (lesson: Lesson) => {
         if (lesson.isLocked) {

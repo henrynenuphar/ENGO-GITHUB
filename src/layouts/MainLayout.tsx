@@ -1,13 +1,22 @@
-import React from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import React, { useEffect } from 'react'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { Home, Gamepad2, User, BookOpen, Compass, BookA, Lightbulb } from 'lucide-react'
 import { cn } from '@/components/ui/Button'
 import { useFocus } from '@/context/FocusContext'
 import { useAuth } from '@/context/UserContext'
 
 const MainLayout = () => {
+    const navigate = useNavigate()
     const { isActive, timeLeft } = useFocus()
     const { user } = useAuth()
+
+    useEffect(() => {
+        if (!user) {
+            navigate('/login', { replace: true })
+        }
+    }, [user, navigate])
+
+    if (!user) return null // Prevent flash of content
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60)

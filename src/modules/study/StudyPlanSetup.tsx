@@ -11,7 +11,7 @@ import SubscriptionModal from '@/components/common/SubscriptionModal'
 import { BookOpen, GraduationCap, Baby } from 'lucide-react'
 
 // Types
-type SetupStep = 'intro' | 'schedule' | 'preview' | 'confirm' | 'complete'
+type SetupStep = 'intro' | 'grade_selection' | 'schedule' | 'preview' | 'confirm' | 'complete'
 type StudyDuration = 30 | 60 | 90 | 120 | 180
 const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 

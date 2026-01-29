@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import MainLayout from '@/layouts/MainLayout'
 import LoginScreen from '@/modules/auth/LoginScreen'
@@ -16,7 +16,7 @@ const Welcome = () => {
         <div className="min-h-screen bg-brand-blue flex flex-col items-center justify-center text-white">
             <h1 className="text-4xl font-bold mb-4 animate-bounce">ENGO</h1>
             <p className="mb-8">English for Kids</p>
-            <a href="/login" className="px-6 py-3 bg-white text-brand-blue rounded-full font-bold shadow-lg hover:scale-105 transition-transform">Get Started</a>
+            <Link to="/login" className="px-6 py-3 bg-white text-brand-blue rounded-full font-bold shadow-lg hover:scale-105 transition-transform">Get Started</Link>
         </div>
     )
 }
@@ -28,7 +28,7 @@ function App() {
     return (
         <UserProvider>
             <FocusProvider>
-                <Router>
+                <Router basename={import.meta.env.BASE_URL}>
                     <div className="min-h-screen bg-brand-lightBlue font-sans text-slate-800">
                         <Routes>
                             <Route path="/" element={<Welcome />} />
