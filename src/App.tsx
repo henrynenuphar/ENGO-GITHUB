@@ -42,6 +42,7 @@ function App() {
                                 <Route path="study" element={<StudyScreen />} />
                                 <Route path="study/setup" element={<StudyPlanSetup />} />
                                 <Route path="study/:lessonId" element={<LessonDetailScreen />} />
+                                {/* Games are now accessed via LessonDetailScreen */}
                                 <Route path="profile" element={<ProfileScreen />} />
                             </Route>
                         </Routes>
