@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom'
+import { HashRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import MainLayout from '@/layouts/MainLayout'
 import LoginScreen from '@/modules/auth/LoginScreen'
@@ -9,6 +9,8 @@ import DiscoveryScreen from '@/modules/discovery/DiscoveryScreen'
 import DictionaryScreen from '@/modules/dictionary/DictionaryScreen'
 import StudyPlanSetup from '@/modules/study/StudyPlanSetup'
 import LessonDetailScreen from '@/modules/study/LessonDetailScreen'
+import ContactBookScreen from '@/modules/dashboard/ContactBookScreen'
+import ChallengeScreen from '@/modules/challenge/ChallengeScreen'
 
 // Welcome Screen (Simple Splash)
 const Welcome = () => {
@@ -28,7 +30,7 @@ function App() {
     return (
         <UserProvider>
             <FocusProvider>
-                <Router basename={import.meta.env.BASE_URL}>
+                <Router>
                     <div className="min-h-screen bg-brand-lightBlue font-sans text-slate-800">
                         <Routes>
                             <Route path="/" element={<Welcome />} />
@@ -45,6 +47,8 @@ function App() {
                                 {/* Games are now accessed via LessonDetailScreen */}
                                 <Route path="profile" element={<ProfileScreen />} />
                             </Route>
+                            <Route path="/app/contact-book" element={<ContactBookScreen />} />
+                            <Route path="/app/challenge" element={<ChallengeScreen />} />
                         </Routes>
                         <Toaster position="top-center" />
                     </div>
