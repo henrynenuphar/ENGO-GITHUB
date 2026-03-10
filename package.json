@@ -2,7 +2,7 @@
   "name": "engo",
   "private": true,
   "version": "0.0.0",
-  "homepage": "https://henrynenuphar.github.io/ENGO-GITHUB/",
+  "homepage": "/",
   "type": "module",
   "scripts": {
     "dev": "vite",

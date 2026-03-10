@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => ({
     plugins: [react()],
-    base: '/ENGO-GITHUB/',
+    base: '/',
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),

@@ -84,7 +84,7 @@ const MainLayout = () => {
                 {/* --- SCROLLABLE PAGE CONTENT --- */}
                 <main className="flex-1 overflow-y-auto scroll-smooth p-4 pb-24 md:pb-8 md:p-8">
                     {/* Container to prevent stretching on giant screens */}
-                    <div className="max-w-5xl mx-auto w-full h-full">
+                    <div className="max-w-5xl mx-auto w-full">
                         <Outlet />
                     </div>
                 </main>
