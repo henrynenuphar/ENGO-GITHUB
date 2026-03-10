@@ -12,6 +12,7 @@ interface User {
     lastProvinceChangeDate?: number
     xp: number
     dailyLessonCount?: number
+    dailyCompletedIds?: string[]
     lastDailyDate?: number
     enrolledCourses: EnrolledCourse[]
 }
@@ -35,7 +36,7 @@ export interface EnrolledCourse {
 
 interface UserContextType {
     user: User | null
-    login: (phone: string, role: 'student' | 'parent') => void
+    login: (phone: string, role: 'student' | 'parent', name?: string) => void
     logout: () => void
     updateUser: (updates: Partial<User>) => void
     isAuthenticated: boolean
@@ -142,7 +143,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     })
 
     // Simulated Login Logic
-    const login = (phone: string, role: 'student' | 'parent') => {
+    const login = (phone: string, role: 'student' | 'parent', name?: string) => {
         const isPremium = phone === PREMIUM_PHONE
 
         // 1. Load DB
@@ -158,7 +159,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
             userToLogin = {
                 id: isPremium ? 'vip_user_123' : `user_${Date.now()}`,
-                name: isPremium ? 'Henry (VIP)' : 'Bạn Mới',
+                name: name || (isPremium ? 'Henry (VIP)' : 'Bạn Mới'),
                 phone,
                 role,
                 isPremium,
@@ -166,6 +167,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
                 avatar: undefined,
                 xp: 0,
                 dailyLessonCount: 0,
+                dailyCompletedIds: [],
                 lastDailyDate: Date.now(),
                 enrolledCourses: isPremium ? [
                     {

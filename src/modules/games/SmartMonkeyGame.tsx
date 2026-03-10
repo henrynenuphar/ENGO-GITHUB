@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { GameContainer } from './components/GameContainer'
 import { Vocabulary } from '@/types'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { Clock } from 'lucide-react'
-import mascotImg from '@/assets/images/mascot_new.png'
+import mascotImg from '@/assets/images/monkey_board.png'
+import aiJungleBg from '@/assets/images/smart_monkey_jungle_bg.png'
+import { GameReview, ReviewItem } from './components/GameReview'
+import { GameResult } from './components/GameResult'
 
 interface SmartMonkeyGameProps {
     data: {
@@ -16,17 +19,19 @@ interface SmartMonkeyGameProps {
 const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onExit }) => {
     // Game Constants
     const ROUND_DURATION = 600
-    // Speed: pixels per second. Adjust to control difficulty.
-    const SPEED_PX_PER_SEC = 50
+    // Speed: pixels per second. Increased from 75 to 130 as requested for a faster challenge.
+    const SPEED_PX_PER_SEC = 130
 
     // Component Refs
     const monkeyBoardRef = useRef<HTMLDivElement>(null)
+    const bgMusicRef = useRef<HTMLAudioElement | null>(null)
 
     // State
     const [score, setScore] = useState(0)
     const [timeLeft, setTimeLeft] = useState(ROUND_DURATION)
     const [isPaused, setIsPaused] = useState(false)
-    const [gameEnded, setGameEnded] = useState(false)
+    const [gamePhase, setGamePhase] = useState<'playing' | 'review' | 'result'>('playing')
+    const [userAnswers, setUserAnswers] = useState<ReviewItem[]>([])
 
     // Game Logic State
     // uniqueId is critical for React lists
@@ -42,14 +47,72 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
         payload: Vocabulary
     } | null>(null)
 
-    // Setup
+    // Mouse tracking for monkey
+    const mouseX = useMotionValue(typeof window !== 'undefined' ? window.innerWidth / 2 : 500)
+    const smoothMouseX = useSpring(mouseX, { stiffness: 40, damping: 15 })
+    const monkeyX = useTransform(smoothMouseX, [0, typeof window !== 'undefined' ? window.innerWidth : 1000], [-80, 80])
+
     useEffect(() => {
-        initGame()
+        const handleMouseMove = (e: MouseEvent) => {
+            mouseX.set(e.clientX)
+        }
+        window.addEventListener('mousemove', handleMouseMove)
+        return () => window.removeEventListener('mousemove', handleMouseMove)
+    }, [mouseX])
+
+    // Background Music
+    useEffect(() => {
+        // Using the user's requested YouTube track (downloaded as mp4, perfectly playable by new Audio() in browsers)
+        bgMusicRef.current = new Audio('/sounds/fun_bg_jungle_user.mp4')
+        bgMusicRef.current.loop = true
+        bgMusicRef.current.volume = 0.4 // Background level
+
+        const playMusic = () => {
+            bgMusicRef.current?.play().catch(e => console.log("Audio autoplay blocked", e))
+        }
+
+        // Try to play immediately (might be blocked until interaction)
+        playMusic()
+
+        // Cleanup
+        return () => {
+            bgMusicRef.current?.pause()
+            bgMusicRef.current = null
+        }
     }, [])
 
-    // Timer
+    // Setup
+    // Landscape Enforcement State
+    const [isLandscape, setIsLandscape] = useState(true)
+
+    // Setup & Orientation Check
     useEffect(() => {
-        if (isPaused || gameEnded) return
+        const checkOrientation = () => {
+            const isMobile = window.innerWidth < 768
+            const isPortrait = window.innerHeight > window.innerWidth
+            // Only enforce landscape if on mobile
+            if (isMobile && isPortrait) {
+                setIsLandscape(false)
+                setIsPaused(true) // Auto-pause game
+            } else {
+                setIsLandscape(true)
+                setIsPaused(false) // Resume (optional, or keep user paused manually)
+            }
+        }
+
+        checkOrientation()
+        window.addEventListener('resize', checkOrientation)
+        return () => window.removeEventListener('resize', checkOrientation)
+    }, [])
+
+    // ... (keep initGame and Timer same)
+
+    useEffect(() => {
+        if (isLandscape) initGame()
+    }, [isLandscape])
+
+    useEffect(() => {
+        if (isPaused || gamePhase !== 'playing') return
         const timer = setInterval(() => {
             setTimeLeft(prev => {
                 if (prev <= 1) {
@@ -61,7 +124,7 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
             })
         }, 1000)
         return () => clearInterval(timer)
-    }, [isPaused, gameEnded])
+    }, [isPaused, gamePhase])
 
     const initGame = () => {
         if (!data?.words || data.words.length === 0) return
@@ -73,23 +136,13 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
         setCurrentTarget(shuffledTargets[0])
 
         // 2. Prepare Belt Items (Infinite Loop Illusion)
-        // We need a list that repeats to create a seamless loop.
-        // We will take the word list, shuffle it differently for the belt, 
-        // to make it "random" and not just the same order as targets.
-        // Rule: Belt order should be random check logic.
-
         let pool = [...data.words]
-        // If pool is small, duplicate it to ensure we have enough items for a nice loop
         while (pool.length < 10) {
             pool = [...pool, ...data.words]
         }
-
-        // Shuffle the pool for the belt
         const beltShuffled = [...pool].sort(() => Math.random() - 0.5)
 
         // Setup for seamless loop: List A + List A.
-        // We animate through List A, then instant jump back to 0.
-        // Belt = [Item1...ItemN] + [Item1...ItemN]
         const loopList = [...beltShuffled, ...beltShuffled].map((w, i) => ({
             ...w,
             uniqueId: `belt-${i}-${Math.random().toString(36).substr(2, 9)}`
@@ -98,11 +151,16 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
         setBeltWords(loopList)
         setScore(0)
         setTimeLeft(ROUND_DURATION)
-        setGameEnded(false)
+        setGamePhase('playing')
+        setUserAnswers([])
+
+        // Resume music if it was paused or not started
+        bgMusicRef.current?.play().catch(() => { })
     }
 
     const endGame = () => {
-        setGameEnded(true)
+        setGamePhase('review')
+        bgMusicRef.current?.pause()
     }
 
     const playSound = (type: 'correct' | 'wrong') => {
@@ -115,12 +173,19 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
     }
 
     const handleSignClick = (e: React.MouseEvent, beltWord: Vocabulary & { uniqueId: string }) => {
-        if (isPaused || gameEnded || !currentTarget || flyingPayload) return
+        if (isPaused || gamePhase !== 'playing' || !currentTarget || flyingPayload) return
 
         if (beltWord.id === currentTarget.id) {
             // Correct Match
             playSound('correct')
             setScore(prev => prev + 10)
+
+            setUserAnswers(prev => [...prev, {
+                question: `Tìm từ cho: "${currentTarget.meaning}"`,
+                userAnswer: beltWord.word,
+                correctAnswer: currentTarget.word,
+                isCorrect: true
+            }])
 
             // Start Position
             let start = { x: window.innerWidth / 2, y: window.innerHeight - 150 }
@@ -140,8 +205,10 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
 
             // Attach & Next
             setTimeout(() => {
+                // FIXED: Update matched status for ALL instances of this word on the belt (original + clone)
+                // This prevents the "disappearing match" bug when the infinite loop resets.
                 setBeltWords(prev => prev.map(w =>
-                    w.uniqueId === beltWord.uniqueId
+                    w.id === beltWord.id
                         ? { ...w, matchedPayload: currentTarget! }
                         : w
                 ))
@@ -160,6 +227,14 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
         } else {
             // Wrong
             setScore(prev => Math.max(0, prev - 2))
+
+            setUserAnswers(prev => [...prev, {
+                question: `Tìm từ cho: "${currentTarget.meaning}"`,
+                userAnswer: beltWord.word,
+                correctAnswer: currentTarget.word,
+                isCorrect: false
+            }])
+
             setMessage({ text: "Chưa đúng!", type: 'error' })
             playSound('wrong')
             setTimeout(() => {
@@ -186,30 +261,26 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
     const totalLoopDistance = loopCount * UNIT_WIDTH_PX
     const animationDuration = totalLoopDistance / SPEED_PX_PER_SEC
 
-    if (gameEnded) {
+    // --- RENDER: LANDSCAPE WARNING ---
+    if (!isLandscape) {
         return (
-            <div className="fixed inset-0 bg-brand-lightBlue flex flex-col items-center justify-center p-8 z-[100]">
-                <motion.div
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="bg-white p-8 rounded-3xl shadow-2xl border-4 border-brand-orange text-center max-w-sm w-full relative overflow-hidden"
-                >
-                    <div className="absolute top-0 left-0 w-full h-4 bg-brand-orange/20" />
-                    <div className="w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                        <span className="text-6xl">🏆</span>
-                    </div>
-                    <h2 className="text-3xl font-black text-slate-800 mb-2">Tuyệt vời!</h2>
-                    <p className="text-slate-500 mb-6 font-medium">Bạn đã hoàn thành tất cả từ vựng!</p>
-                    <div className="bg-orange-50 rounded-2xl p-4 mb-8">
-                        <p className="text-sm text-orange-400 font-bold uppercase tracking-wider mb-1">Tổng điểm</p>
-                        <p className="text-5xl font-black text-brand-orange">{score}</p>
-                    </div>
-                    <button onClick={() => onComplete(score)} className="w-full bg-brand-orange text-white py-4 rounded-xl text-xl font-bold shadow-lg hover:bg-orange-600 transition-transform active:scale-95">
-                        Chơi tiếp
-                    </button>
-                </motion.div>
+            <div className="fixed inset-0 bg-brand-blue z-[100] flex flex-col items-center justify-center text-white p-8 text-center">
+                <div className="w-24 h-24 mb-6 border-4 border-white rounded-2xl animate-spin-slow flex items-center justify-center">
+                    <div className="w-16 h-24 border-2 border-white rounded-lg animate-pulse" />
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Vui lòng xoay ngang điện thoại</h2>
+                <p>Trò chơi này cần màn hình rộng để hiển thị tốt nhất!</p>
             </div>
         )
+    }
+
+    if (gamePhase === 'review') {
+        return <GameReview items={userAnswers} onContinue={() => setGamePhase('result')} />
+    }
+
+    if (gamePhase === 'result') {
+        const totalWords = data.words?.length || 0
+        return <GameResult score={score} maxScore={totalWords * 10} onComplete={() => onComplete(score)} />
     }
 
     return (
@@ -222,15 +293,24 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
             onExit={onExit}
             hideScore={true}
         >
-            <div className="h-full w-full relative overflow-hidden bg-sky-100 font-comic select-none flex flex-col">
+            <div className="h-full w-full relative overflow-hidden font-comic select-none flex flex-col">
+                {/* --- LUSH JUNGLE AI BACKGROUND IMAGE WITH BREATHING ANIMATION --- */}
+                <motion.div
+                    animate={{ scale: [1.02, 1.05, 1.02], rotate: [-0.5, 0.5, -0.5] }}
+                    transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute inset-0 bg-cover bg-center bg-no-repeat z-0 transform-gpu origin-center"
+                    style={{ backgroundImage: `url(${aiJungleBg})` }}
+                />
+                {/* Vignette effect */}
+                <div className="absolute inset-0 bg-green-900/10 mix-blend-overlay z-0 pointer-events-none" />
 
-                {/* --- GREEN CONVEYOR ROOF --- */}
+                {/* --- GREEN CONVEYOR ROOF WITH VINES --- */}
                 <div className="absolute top-0 left-0 w-full h-16 z-20 shadow-lg pointer-events-none">
-                    <div className="w-full h-6 bg-green-700" />
-                    <div className="w-full h-10 bg-green-600 relative">
-                        <div className="absolute -bottom-4 left-0 w-full flex overflow-hidden">
-                            {Array.from({ length: 40 }).map((_, i) => (
-                                <div key={i} className="w-8 h-8 bg-green-600 rounded-full flex-shrink-0 -ml-2 border-b-2 border-green-800/30" />
+                    <div className="w-full h-6 bg-green-800" />
+                    <div className="w-full h-10 bg-green-700 relative">
+                        <div className="absolute -bottom-4 left-0 w-[200vw] flex overflow-hidden">
+                            {Array.from({ length: 150 }).map((_, i) => (
+                                <div key={i} className="w-8 h-8 bg-green-700 rounded-full flex-shrink-0 -ml-2 border-b-2 border-green-900/40" />
                             ))}
                         </div>
                     </div>
@@ -300,10 +380,10 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
                                                         <div className="w-1.5 h-4 bg-[#8d6e63] mb-[-2px] relative z-0 mx-auto" />
                                                         <div className="w-32 h-20 bg-white rounded-lg border-4 border-[#e65100] shadow-md flex items-center justify-center p-1.5 relative z-10 origin-top animate-swing transform hover:scale-110 transition-transform">
                                                             {/* Enhanced Image Fallback */}
-                                                            {word.matchedPayload.image.startsWith('http') ? (
+                                                            {word.matchedPayload.image ? (
                                                                 <img
                                                                     src={word.matchedPayload.image}
-                                                                    className="w-full h-full object-contain rounded-sm"
+                                                                    className="w-full h-full object-contain rounded-sm bg-white"
                                                                     alt="matched"
                                                                     onError={(e) => {
                                                                         e.currentTarget.style.display = 'none';
@@ -351,44 +431,63 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
                             )}
                         </AnimatePresence>
 
-                        <AnimatePresence>
-                            {currentTarget && (
-                                <motion.div
-                                    key={currentTarget.id}
-                                    initial={{ scale: 0.8, opacity: 0, y: 20 }}
-                                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                                    exit={{ scale: 0.8, opacity: 0, transition: { duration: 0.2 } }}
-                                    className="relative z-20 transform -rotate-1 mb-[-40px]"
-                                    ref={monkeyBoardRef}
-                                >
-                                    <div className="w-56 h-40 bg-white rounded-2xl border-[6px] border-slate-700 shadow-2xl flex flex-col items-center justify-center p-3 relative group cursor-pointer hover:scale-105 transition-transform bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-repeat">
-                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-200 text-slate-500 text-[10px] font-bold px-2 rounded-full border border-slate-300">
-                                            FIND THE MATCH
-                                        </div>
-                                        {currentTarget.image.startsWith('http') ? (
-                                            <>
-                                                <img
-                                                    src={currentTarget.image}
-                                                    className="w-full h-full object-contain pointer-events-none"
-                                                    alt="target"
-                                                    onError={(e) => {
-                                                        e.currentTarget.style.display = 'none';
-                                                        e.currentTarget.parentElement?.querySelector('.fallback-main')?.classList.remove('hidden');
-                                                    }}
-                                                />
-                                                <div className="fallback-main hidden absolute inset-0 flex items-center justify-center p-4">
-                                                    <span className="text-3xl text-center font-bold text-slate-800 break-words w-full">{currentTarget.meaning}</span>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <span className="text-3xl text-center font-bold text-slate-800 break-words w-full px-2">{currentTarget.meaning}</span>
-                                        )}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                        {/* NEW MASCOT AREA WITH EMBEDDED BOARD */}
+                        <motion.div
+                            className="relative w-96 md:w-[32rem] h-auto mb-4"
+                            style={{ x: monkeyX }}
+                            whileHover={{ scale: 1.02 }}
+                            ref={monkeyBoardRef}
+                        >
+                            <img
+                                src={mascotImg}
+                                alt="Monkey"
+                                className="w-full h-full object-contain relative z-10 pointer-events-none"
+                            />
 
-                        <img src={mascotImg} alt="Monkey" className="w-40 md:w-48 object-contain relative z-10 mt-8" />
+                            {/* TARGET CONTENT OVERLAY ON THE WHITEBOARD */}
+                            <AnimatePresence>
+                                {currentTarget && (
+                                    <motion.div
+                                        key={currentTarget.id}
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
+                                        className="absolute inset-0 z-20 pointer-events-none"
+                                        // Boundaries precisely aligned to the inner white board
+                                        style={{ top: '39%', left: '26%', right: '23%', bottom: '26%' }}
+                                    >
+                                        <div className="absolute inset-x-2 top-1 bottom-3 flex items-center justify-center overflow-hidden">
+                                            {currentTarget.image ? (
+                                                <>
+                                                    <img
+                                                        src={currentTarget.image}
+                                                        className="w-full h-full object-contain mix-blend-multiply"
+                                                        alt="target"
+                                                        onError={(e) => {
+                                                            e.currentTarget.style.display = 'none';
+                                                            const sibling = e.currentTarget.parentElement?.querySelector('.fallback-target');
+                                                            if (sibling) sibling.classList.remove('hidden');
+                                                        }}
+                                                    />
+                                                    {/* Fallback container with flex centering */}
+                                                    <div className="fallback-target hidden absolute inset-0 w-full h-full flex items-center justify-center p-4">
+                                                        <span className="text-2xl md:text-3xl font-black text-slate-800 break-words drop-shadow-sm leading-tight text-center w-full">
+                                                            {currentTarget.meaning}
+                                                        </span>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center p-4">
+                                                    <span className="text-2xl md:text-3xl font-black text-slate-800 break-words drop-shadow-sm leading-tight text-center w-full">
+                                                        {currentTarget.meaning}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </motion.div>
                     </div>
                 </div>
 
@@ -412,7 +511,7 @@ const SmartMonkeyGame: React.FC<SmartMonkeyGameProps> = ({ data, onComplete, onE
                         transition={{ duration: 0.6, ease: "backIn" }}
                         className="w-56 h-40 bg-white rounded-2xl border-4 border-slate-700 shadow-xl flex items-center justify-center p-2 pointer-events-none"
                     >
-                        {flyingPayload.payload.image.startsWith('http') ? (
+                        {flyingPayload.payload.image ? (
                             <img src={flyingPayload.payload.image} className="w-full h-full object-contain" alt="flying" />
                         ) : (
                             <span className="text-xl font-bold">{flyingPayload.payload.meaning}</span>

@@ -42,7 +42,7 @@ export const GameContainer = ({
 
     return (
         <div className="fixed inset-0 z-[60] flex justify-center bg-brand-lightBlue">
-            <div className="w-full max-w-md h-full flex flex-col bg-white shadow-2xl relative overflow-hidden">
+            <div className="w-full h-full flex flex-col bg-white shadow-2xl relative overflow-hidden">
                 {/* Game Header */}
                 {!hideHeader && (
                     <div className="h-16 bg-white/10 flex items-center justify-between px-4 backdrop-blur-md shrink-0">

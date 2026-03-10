@@ -1,21 +1,48 @@
-import { useState } from 'react'
-import { GRADE_5_LESSONS } from '@/data/grade5'
+import { useState, useEffect } from 'react'
+import { COURSES } from '@/data/courses'
 import { Lesson } from '@/types'
 import { ChevronRight, Trophy, Lock, PlayCircle, Star } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import StudyPlanSetup from '../study/StudyPlanSetup'
+import { useAuth } from '@/context/UserContext'
 
 const StudyScreen = () => {
     const navigate = useNavigate()
+    const location = useLocation()
+    const { user } = useAuth()
     const [selectedLesson, setSelectedLesson] = useState<string | null>(null)
 
     // Check localStorage for persisted plan status
     const [hasPlan, setHasPlan] = useState(() => {
         return localStorage.getItem('engo_study_plan_done') === 'true'
     })
+
+    const targetCourseId = location.state?.courseId
+
+    // Get active course (default to first active, or selectable)
+    // We add local state to select which course is active
+    const [selectedCourseIndex, setSelectedCourseIndex] = useState(() => {
+        if (!user?.enrolledCourses || !targetCourseId) return 0;
+        const index = user.enrolledCourses.findIndex(c => c.courseId === targetCourseId);
+        return index >= 0 ? index : 0;
+    })
+
+    useEffect(() => {
+        if (targetCourseId && user?.enrolledCourses) {
+            const index = user.enrolledCourses.findIndex(c => c.courseId === targetCourseId);
+            if (index >= 0) {
+                setSelectedCourseIndex(index);
+            }
+        }
+    }, [targetCourseId, user?.enrolledCourses])
+
+    const activeEnrollment = user?.enrolledCourses?.[selectedCourseIndex]
+    const activeCourseId = activeEnrollment?.courseId || 'grade-5'
+    const activeCourse = COURSES[activeCourseId]
+    const activeLessons = activeCourse?.lessons || []
 
     // Get Schedule from Storage
     const scheduleDays = JSON.parse(localStorage.getItem('engo_study_schedule') || '["Mon", "Wed", "Fri"]') as string[]
@@ -95,18 +122,37 @@ const StudyScreen = () => {
 
     return (
         <div className="p-4 space-y-6 pb-24">
-            <header className="mb-6 flex items-start justify-between">
+            <header className="mb-2 flex items-start justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Lộ Trình Học Lớp 5</h1>
-                    <p className="text-slate-500">Hoàn thành 12 Unit để chinh phục tiếng Anh nhé!</p>
+                    <h1 className="text-2xl font-bold text-slate-800">Lộ Trình Học {activeCourse?.title || 'Lớp 5'}</h1>
+                    <p className="text-slate-500">Hoàn thành {activeLessons.length} Unit để chinh phục tiếng Anh nhé!</p>
                 </div>
                 <button onClick={resetPlan} className="text-xs text-brand-blue font-bold underline bg-blue-50 px-2 py-1 rounded">
                     Thiết lập lại
                 </button>
             </header>
 
+            {/* Course Switcher (only show if enrolled in > 1 course) */}
+            {user?.enrolledCourses && user.enrolledCourses.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
+                    {user.enrolledCourses.map((enrollment, index) => {
+                        const c = COURSES[enrollment.courseId]
+                        if (!c) return null
+                        return (
+                            <button
+                                key={enrollment.courseId}
+                                onClick={() => setSelectedCourseIndex(index)}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all border-2 ${selectedCourseIndex === index ? 'bg-brand-blue text-white border-brand-blue shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-brand-blue/30'}`}
+                            >
+                                {c.title}
+                            </button>
+                        )
+                    })}
+                </div>
+            )}
+
             <div className="space-y-4">
-                {GRADE_5_LESSONS.map((lesson, index) => {
+                {activeLessons.map((lesson, index) => {
                     const isExpanded = selectedLesson === lesson.id
                     const lessonDate = getLessonDate(index)
 
@@ -121,7 +167,7 @@ const StudyScreen = () => {
                                 onClick={() => handleLessonPress(lesson)}
                             >
                                 {/* Thumbnail / Icon */}
-                                <div className={`w-16 h-16 rounded-xl flex-shrink-0 flex items-center justify-center text-2xl font-bold text-white relative overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600`}>
+                                <div className={`w-16 h-16 rounded-xl flex-shrink-0 flex items-center justify-center text-2xl font-bold text-white relative overflow-hidden bg-gradient-to-br from-brand-blue to-cyan-400`}>
                                     {index + 1}
                                 </div>
 

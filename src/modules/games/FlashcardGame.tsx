@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { ChevronLeft, ChevronRight, Volume2, RotateCw, CheckCircle, Trophy } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { toast } from 'sonner'
+import { GameResult } from './components/GameResult'
 
 interface FlashcardGameProps {
     data: {
@@ -26,12 +27,51 @@ const FlashcardGame: React.FC<FlashcardGameProps> = ({ data, onComplete, onExit 
 
     if (totalWords === 0) return <div>No vocabulary data found.</div>
 
+    // Preload system voices
+    React.useEffect(() => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = () => {
+                window.speechSynthesis.getVoices()
+            }
+            window.speechSynthesis.getVoices()
+        }
+        return () => { if ('speechSynthesis' in window) window.speechSynthesis.cancel() }
+    }, [])
+
     const playAudio = (e: React.MouseEvent) => {
         e.stopPropagation()
-        if (currentWord.audio) {
-            const audio = new Audio(currentWord.audio)
-            audio.play().catch(() => toast.error("Audio not found"))
+
+        // STRATEGY: 
+        // 1. Try Google Translate TTS API for natural, full-phrase reading
+        // 2. If it fails (e.g., adblocker, no internet), fallback to Web Speech API (System TTS)
+        const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(currentWord.word)}&tl=en&client=tw-ob`
+        const audio = new Audio(ttsUrl)
+
+        const playFallbackSystemTTS = () => {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel()
+                const utterance = new SpeechSynthesisUtterance(currentWord.word)
+                utterance.lang = 'en-US'
+                utterance.rate = 0.85
+
+                const voices = window.speechSynthesis.getVoices()
+                const preferredVoice = voices.find(v => v.name.includes('Google US English')) ||
+                    voices.find(v => v.name.includes('Samantha')) ||
+                    voices.find(v => v.lang.startsWith('en-US')) ||
+                    voices.find(v => v.lang.startsWith('en'))
+
+                if (preferredVoice) utterance.voice = preferredVoice
+
+                window.speechSynthesis.speak(utterance)
+            } else {
+                toast.error("Trình duyệt không hỗ trợ phát âm thanh!")
+            }
         }
+
+        audio.play().catch((err) => {
+            console.warn("API TTS failed, falling back to System TTS", err)
+            playFallbackSystemTTS()
+        })
     }
 
     const handleNext = () => {
@@ -57,18 +97,7 @@ const FlashcardGame: React.FC<FlashcardGameProps> = ({ data, onComplete, onExit 
     }
 
     if (isCompleted) {
-        return (
-            <div className="h-full flex flex-col items-center justify-center p-6 space-y-6 text-center animate-in fade-in zoom-in duration-500 bg-white">
-                <div className="w-32 h-32 bg-yellow-100 rounded-full flex items-center justify-center mb-4 shadow-xl ring-8 ring-yellow-50">
-                    <Trophy size={64} className="text-yellow-500 animate-bounce" />
-                </div>
-                <h2 className="text-3xl font-bold text-slate-800">Tuyệt vời!</h2>
-                <p className="text-slate-500 text-lg">Bạn đã học xong {totalWords} từ vựng mới.</p>
-                <Button onClick={() => onComplete(30)} size="lg" className="bg-green-500 hover:bg-green-600 shadow-lg hover:scale-105 transition-transform">
-                    Chơi Game Ngay! <ChevronRight className="ml-2" />
-                </Button>
-            </div>
-        )
+        return <GameResult score={30} onComplete={() => onComplete(30)} />
     }
 
     return (
@@ -112,7 +141,7 @@ const FlashcardGame: React.FC<FlashcardGameProps> = ({ data, onComplete, onExit 
                                     onClick={playAudio}
                                     className="rounded-full px-6 py-1.5 h-auto border-brand-blue/30 text-brand-blue hover:bg-brand-blue/5 text-sm"
                                 >
-                                    <Volume2 size={16} className="mr-2" /> Listen (US)
+                                    <Volume2 size={16} className="mr-2" /> Listen
                                 </Button>
 
                                 {/* Example (Now on Front) */}
@@ -121,16 +150,30 @@ const FlashcardGame: React.FC<FlashcardGameProps> = ({ data, onComplete, onExit 
                                     <p className="text-base font-medium leading-relaxed text-slate-700 text-left italic line-clamp-4">
                                         {(() => {
                                             const sentence = currentWord.exampleSentence || ""
-                                            const target = currentWord.pastTense || currentWord.word
-                                            if (!target) return `"${sentence}"`
-                                            const parts = sentence.split(new RegExp(`(${target})`, 'gi'))
+                                            // Prefer pastTense if exists and is used, otherwise use the base word.
+                                            // We'll actually check both to see which one is in the sentence.
+                                            let target = "";
+                                            if (currentWord.pastTense && sentence.toLowerCase().includes(currentWord.pastTense.toLowerCase())) {
+                                                target = currentWord.pastTense;
+                                            } else if (sentence.toLowerCase().includes(currentWord.word.toLowerCase())) {
+                                                target = currentWord.word;
+                                            }
+
+                                            // If no exact match of the full phrase (either past or present), fallback to splitting
+                                            // and just doing the best we can. 
+                                            // Actually, since we updated all sentences to present tense, target should exactly match `currentWord.word`.
+
+                                            if (!target) {
+                                                // Fallback: Just return the sentence if we really can't find a match
+                                                return `"${sentence}"`
+                                            }
+
+                                            // Escape regex special characters in target
+                                            const escapedTarget = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                            const parts = sentence.split(new RegExp(`(${escapedTarget})`, 'gi'))
+
                                             if (parts.length > 1) {
                                                 return <>{parts.map((p, i) => p.toLowerCase() === target.toLowerCase() ? <span key={i} className="text-brand-blue font-extrabold not-italic">{p}</span> : p)}</>
-                                            }
-                                            const lastWord = target.split(' ').pop()
-                                            if (lastWord && sentence.toLowerCase().includes(lastWord.toLowerCase())) {
-                                                const parts2 = sentence.split(new RegExp(`(${lastWord})`, 'gi'))
-                                                return <>{parts2.map((p, i) => p.toLowerCase() === lastWord.toLowerCase() ? <span key={i} className="text-brand-blue font-extrabold not-italic">{p}</span> : p)}</>
                                             }
                                             return `"${sentence}"`
                                         })()}

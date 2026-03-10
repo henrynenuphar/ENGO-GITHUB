@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { GRADE_5_LESSONS } from '@/data/grade5'
-import { GameType } from '@/types'
+import { COURSES } from '@/data/courses'
+import { GameType, Lesson } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Play, CheckCircle, Star, Lock, Trophy, AlertCircle, ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
@@ -12,9 +12,16 @@ import { useAuth } from '@/context/UserContext'
 import FlashcardGame from '../games/FlashcardGame'
 import CoolPairGame from '../games/CoolPairGame'
 import SmartMonkeyGame from '../games/SmartMonkeyGame'
+import StarTalkGame from '../games/StarTalkGame'
 import RowingGame from '../games/RowingGame'
+import PickUpTrashGame from '../games/PickUpTrashGame'
+import DefeatTheGoalkeeperGame from '../games/DefeatTheGoalkeeperGame'
+import BalloonPopGame from '../games/BalloonPopGame'
+import NumberWordTraceGame from '../games/NumberWordTraceGame'
 
-// Mock Components for unimplemented games
+// ... existing imports
+
+
 const PlaceholderGame = ({ onComplete, title }: { onComplete: (score: number) => void, title: string }) => (
     <div className="h-full flex flex-col items-center justify-center space-y-4">
         <h2 className="text-2xl font-bold">{title}</h2>
@@ -27,7 +34,15 @@ const LessonDetailScreen = () => {
     const { lessonId } = useParams()
     const navigate = useNavigate()
     const { user, updateUser } = useAuth() // Moved to top
-    const lesson = GRADE_5_LESSONS.find(l => l.id === lessonId)
+
+    // Find the lesson and its courseId
+    const { lesson, courseId } = React.useMemo(() => {
+        for (const course of Object.values(COURSES)) {
+            const found = course.lessons.find((l: Lesson) => l.id === lessonId);
+            if (found) return { lesson: found, courseId: course.id };
+        }
+        return { lesson: null as Lesson | null, courseId: 'grade-5' };
+    }, [lessonId]);
 
     // State
     const [viewMode, setViewMode] = useState<'overview' | 'playing'>('overview')
@@ -36,7 +51,7 @@ const LessonDetailScreen = () => {
     // Helper to check if this lesson is already fully completed in history
     const isLessonPast = React.useMemo(() => {
         if (!user || !user.enrolledCourses) return false
-        const enrollment = user.enrolledCourses.find(e => e.courseId === 'grade-5')
+        const enrollment = user.enrolledCourses.find(e => e.courseId === courseId)
         if (!enrollment) return false
         return enrollment.currentLessonIndex >= (lesson?.order || 9999)
     }, [user, lesson])
@@ -44,7 +59,7 @@ const LessonDetailScreen = () => {
     // Helper to get stored progress for THIS specific lesson
     const storedProgress = React.useMemo(() => {
         if (!user || !user.enrolledCourses) return null
-        const enrollment = user.enrolledCourses.find(e => e.courseId === 'grade-5')
+        const enrollment = user.enrolledCourses.find(e => e.courseId === courseId)
         if (!enrollment || !enrollment.lessonProgress || !lesson) return null
         return enrollment.lessonProgress[lesson.id]
     }, [user, lesson])
@@ -69,11 +84,11 @@ const LessonDetailScreen = () => {
     })
 
     // Helper to save progress
-    const saveProgress = (videoDone: boolean, scores: Record<string, { highest: number, average: number, count: number }>, xpEarned: number = 0) => {
+    const saveProgress = (videoDone: boolean, scores: Record<string, { highest: number, average: number, count: number }>, xpEarned: number = 0, activityId?: string) => {
         if (!user || !user.enrolledCourses) return
 
         const newEnrolledCourses = user.enrolledCourses.map(e => {
-            if (e.courseId === 'grade-5') {
+            if (e.courseId === courseId) {
                 const currentProgress = e.lessonProgress || {}
                 const newLessonProgress = {
                     ...currentProgress,
@@ -92,50 +107,63 @@ const LessonDetailScreen = () => {
             return e
         })
 
-        // Daily Progress Logic
+        // Daily Progress Logic - Track unique activity IDs today
         const today = new Date()
         const lastDate = user.lastDailyDate ? new Date(user.lastDailyDate) : new Date(0)
         const isSameDay = lastDate.getDate() === today.getDate() &&
             lastDate.getMonth() === today.getMonth() &&
             lastDate.getFullYear() === today.getFullYear()
 
-        // Only increment if we earned XP from a game or finished video (xpEarned > 0 implied activity)
-        // If xpEarned is 0 (video done?), count it too? videoDone implies completion.
-        // Let's count if xpEarned > 0 OR videoDone is newly true (hard to track 'newly').
-        // Let's rely on xpEarned > 0 OR just increment on any save that isn't empty.
-        // Simplest: Increment if xpEarned > 0.
-        // Wait, video completion calls saveProgress(true, gameScores) -> xpEarned default 0.
-        // But video completion is a BIG event. It should count.
-        const shouldCount = xpEarned > 0 || videoDone
+        let currentDailyIds = isSameDay ? (user.dailyCompletedIds || []) : []
 
-        const newDailyCount = isSameDay
-            ? ((user.dailyLessonCount || 0) + (shouldCount ? 1 : 0))
-            : (shouldCount ? 1 : 0)
+        if (activityId && !currentDailyIds.includes(activityId)) {
+            currentDailyIds = [...currentDailyIds, activityId]
+        }
 
         // @ts-ignore
         updateUser({
             enrolledCourses: newEnrolledCourses,
             xp: (user.xp || 0) + xpEarned,
-            dailyLessonCount: newDailyCount,
+            dailyLessonCount: currentDailyIds.length,
+            dailyCompletedIds: currentDailyIds,
             lastDailyDate: Date.now()
         })
     }
 
     if (!lesson) return <div>Lesson not found</div>
 
-    const enrollment = user?.enrolledCourses?.find(e => e.courseId === 'grade-5')
-    const totalItems = 1 + lesson.games.length
+    const enrollment = user?.enrolledCourses?.find(e => e.courseId === courseId)
+    const totalItems = 1 + (lesson as Lesson).games.length
     const completedCount = (videoCompleted ? 1 : 0) + Object.keys(gameScores).length
     const isLessonComplete = completedCount === totalItems
 
     // Calculate Stars (based on Average Score now)
     const videoStars = videoCompleted ? 3 : 0
-    const gameStarsTotal = Object.values(gameScores).reduce((acc, stat) => {
+    // We need to know maxScore for each game to calculate stars correctly.
+    // For now, let's derive it or use a default of 30 if not known, or ideally attach maxScore to game data.
+    // We'll calculate a 'ratio' instead.
+    const getStarsFromRatio = (score: number, maxScore: number) => {
+        const ratio = maxScore > 0 ? score / maxScore : 0
+        if (ratio >= 0.8) return 3
+        if (ratio >= 0.5) return 2
+        if (ratio > 0) return 1
+        return 0
+    }
+
+    const gameStarsTotal = lesson.games.reduce((acc, game) => {
+        const stat = gameScores[game.id]
+        if (!stat) return acc
         const score = stat.average
-        if (score >= 30) return acc + 3
-        if (score >= 20) return acc + 2
-        if (score >= 10) return acc + 1
-        return acc
+        // Estimate maxScore (This should ideally come from game config, but we map common ones here)
+        let maxScore = 30;
+        if (game.type === GameType.ROWING || game.type === GameType.TRASH || game.type === GameType.GOALKEEPER) maxScore = 100;
+        if (game.type === GameType.COOL_PAIR) maxScore = 80;
+        if (game.type === GameType.BALLOON_POP) maxScore = 10;
+        if (game.type === GameType.TRACE_NUMBER_WORD) maxScore = 10;
+        if (game.type === GameType.SMART_MONKEY) maxScore = (game.data?.words?.length || 0) * 10 || 30;
+        if (game.type === GameType.STAR_TALK) maxScore = (game.data?.conversation?.length || 0) / 2 * 10 || 30;
+
+        return acc + getStarsFromRatio(score, maxScore)
     }, 0)
     const totalStars = videoStars + gameStarsTotal
     const maxStars = totalItems * 3
@@ -148,11 +176,23 @@ const LessonDetailScreen = () => {
             title: 'Bài giảng Video',
             isLocked: false,
             isCompleted: videoCompleted,
-            averageScore: videoCompleted ? 30 : 0
+            averageScore: videoCompleted ? 30 : 0,
+            stars: videoCompleted ? 3 : 0
         },
-        ...lesson.games.map((game, idx) => {
-            const prevItemCompleted = idx === 0 ? videoCompleted : !!gameScores[lesson.games[idx - 1].id]
+        ...(lesson as Lesson).games.map((game: any, idx: number) => {
+            const prevItemCompleted = idx === 0 ? videoCompleted : !!gameScores[(lesson as Lesson).games[idx - 1].id]
             const stat = gameScores[game.id]
+
+            let maxScore = 30;
+            if (game.type === GameType.ROWING || game.type === GameType.TRASH || game.type === GameType.GOALKEEPER) maxScore = 100;
+            if (game.type === GameType.COOL_PAIR) maxScore = 80;
+            if (game.type === GameType.BALLOON_POP) maxScore = 10;
+            if (game.type === GameType.TRACE_NUMBER_WORD) maxScore = 10;
+            if (game.type === GameType.SMART_MONKEY) maxScore = (game.data?.words?.length || 0) * 10 || 30;
+            if (game.type === GameType.STAR_TALK) maxScore = (game.data?.conversation?.length || 0) / 2 * 10 || 30;
+
+            const stars = stat ? getStarsFromRatio(stat.average, maxScore) : 0
+
             return {
                 type: 'game',
                 id: game.id,
@@ -160,7 +200,8 @@ const LessonDetailScreen = () => {
                 gameType: game.type,
                 isLocked: !prevItemCompleted,
                 isCompleted: !!stat,
-                averageScore: stat ? stat.average : 0
+                averageScore: stat ? stat.average : 0,
+                stars: stars
             }
         })
     ]
@@ -177,7 +218,7 @@ const LessonDetailScreen = () => {
 
     const handleVideoComplete = () => {
         setVideoCompleted(true)
-        saveProgress(true, gameScores)
+        saveProgress(true, gameScores, 0, `video-${lesson.id}`)
         toast.success("Đã hoàn thành video! Bắt đầu học từ vựng nhé.")
         setActiveItemIndex(0 + 1)
         setViewMode('playing')
@@ -204,7 +245,7 @@ const LessonDetailScreen = () => {
             }
 
             setGameScores(newScores)
-            saveProgress(videoCompleted, newScores, score)
+            saveProgress(videoCompleted, newScores, score, gameId)
 
             // Check for Lesson Completion
             const isNowComplete = (videoCompleted ? 1 : 0) + Object.keys(newScores).length === totalItems
@@ -212,7 +253,7 @@ const LessonDetailScreen = () => {
             if (isNowComplete) {
                 if (enrollment && enrollment.currentLessonIndex < lesson.order) {
                     const newEnrolledCourses = user?.enrolledCourses.map(e => {
-                        if (e.courseId === 'grade-5') {
+                        if (e.courseId === courseId) {
                             return {
                                 ...e,
                                 currentLessonIndex: Math.max(e.currentLessonIndex, lesson.order),
@@ -232,9 +273,31 @@ const LessonDetailScreen = () => {
         setViewMode('overview')
     }
 
+    // Extract Video ID Helper
+    const getYoutubeId = (url: string) => {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+        const match = url.match(regExp);
+
+        return (match && match[2].length === 11)
+            ? match[2]
+            : null;
+    }
+
     // --- VIEW: PLAYING ---
     if (viewMode === 'playing' && activeItemIndex !== null) {
         if (activeItemIndex === 0) {
+
+            // If the URL is already an embed URL, use it directly
+            let embedSrc = lesson.videoUrl;
+
+            // Otherwise try to extract the ID and construct the embed URL
+            if (!embedSrc.includes('/embed/')) {
+                const videoId = getYoutubeId(lesson.videoUrl)
+                const urlObj = new URL(lesson.videoUrl)
+                const startParam = urlObj.searchParams.get('start')
+                embedSrc = videoId ? `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1&controls=1${startParam ? `&start=${startParam}` : ''}` : ''
+            }
+
             return (
                 <div className="h-full flex flex-col bg-black text-white">
                     <div className="p-4 flex justify-between items-center">
@@ -246,13 +309,19 @@ const LessonDetailScreen = () => {
                     </div>
                     <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-6">
                         <div className="w-full max-w-4xl aspect-video bg-slate-900 rounded-2xl overflow-hidden shadow-2xl relative group border border-slate-700">
-                            <iframe
-                                src={`https://www.youtube.com/embed/${lesson.videoUrl.split('v=')[1]}`}
-                                className="w-full h-full"
-                                title="Video Lecture"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                            />
+                            {embedSrc ? (
+                                <iframe
+                                    src={embedSrc}
+                                    className="w-full h-full"
+                                    title="Video Lecture"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-500">
+                                    Video ID Not Found ({lesson.videoUrl})
+                                </div>
+                            )}
                         </div>
                         <div className="text-center">
                             <p className="text-slate-400 mb-4">Xem hết video để nắm kiến thức nhé!</p>
@@ -276,6 +345,11 @@ const LessonDetailScreen = () => {
             case GameType.COOL_PAIR: GameComponent = CoolPairGame; break;
             case GameType.SMART_MONKEY: GameComponent = SmartMonkeyGame; break;
             case GameType.ROWING: GameComponent = RowingGame; break;
+            case GameType.TRASH: GameComponent = PickUpTrashGame; break;
+            case GameType.STAR_TALK: GameComponent = StarTalkGame; break;
+            case GameType.GOALKEEPER: GameComponent = DefeatTheGoalkeeperGame; break;
+            case GameType.BALLOON_POP: GameComponent = BalloonPopGame; break;
+            case GameType.TRACE_NUMBER_WORD: GameComponent = NumberWordTraceGame; break;
             default: GameComponent = null
         }
 
@@ -343,7 +417,7 @@ const LessonDetailScreen = () => {
 
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
                 {/* 3. Hero Card */}
-                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+                <div className="bg-gradient-to-br from-brand-blue to-cyan-400 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
                     {/* Background Pattern */}
                     <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl -mr-10 -mt-10" />
 
@@ -430,7 +504,7 @@ const LessonDetailScreen = () => {
                                                 <Star
                                                     key={s}
                                                     size={16}
-                                                    className={`${(item.averageScore || 0) >= s * 10
+                                                    className={`${(item.stars !== undefined ? item.stars : (item.type === 'video' && item.isCompleted ? 3 : 0)) >= s
                                                         ? 'text-yellow-400 fill-yellow-400'
                                                         : 'text-slate-200 fill-slate-200'
                                                         }`}

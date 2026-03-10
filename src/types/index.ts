@@ -5,9 +5,12 @@ export enum GameType {
     TRASH = 'trash', // Nhặt rác
     SMART_MONKEY = 'smart_monkey',
     GOALKEEPER = 'goalkeeper', // Study/Quiz game
+    BALLOON_POP = 'balloon_pop',
+    TRACE_NUMBER_WORD = 'trace_number_word',
     TEACHER = 'teacher', // Reflex game
     SHADOWING = 'shadowing',
-    WRITING = 'writing'
+    WRITING = 'writing',
+    STAR_TALK = 'star_talk' // Luyện nói/Giao tiếp
 }
 
 export interface Vocabulary {

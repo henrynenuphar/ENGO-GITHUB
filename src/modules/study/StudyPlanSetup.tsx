@@ -13,7 +13,15 @@ import { BookOpen, GraduationCap, Baby } from 'lucide-react'
 // Types
 type SetupStep = 'intro' | 'grade_selection' | 'schedule' | 'preview' | 'confirm' | 'complete'
 type StudyDuration = 30 | 60 | 90 | 120 | 180
-const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const DAYS_OF_WEEK = [
+    { id: 'Mon', label: 'Monday' },
+    { id: 'Tue', label: 'Tuesday' },
+    { id: 'Wed', label: 'Wednesday' },
+    { id: 'Thu', label: 'Thursday' },
+    { id: 'Fri', label: 'Friday' },
+    { id: 'Sat', label: 'Saturday' },
+    { id: 'Sun', label: 'Sunday' }
+]
 
 interface StudyPlanSetupProps {
     onComplete?: () => void
@@ -47,16 +55,25 @@ const StudyPlanSetup = ({ onComplete }: StudyPlanSetupProps) => {
 
     // Form State
     // Form State
-    // Default to Grade 5 since logic forces it for VIP, or we handle dynamic prop later.
-    const [selectedGrade] = useState<string>('grade-5')
     const [duration, setDuration] = useState<StudyDuration>(90)
-    const [selectedDays, setSelectedDays] = useState<string[]>(['Mon', 'Wed', 'Fri'])
-    const [startDate] = useState(new Date()) // Default today
+    const [selectedDays, setSelectedDays] = useState<string[]>([])
+    const [startDateStr, setStartDateStr] = useState(new Date().toISOString().split('T')[0]) // Default today
 
-    // Derived Data
-    const courseName = GRADES.find(g => g.id === 'grade-5')?.title || "Grade 5" // Default to Grade 5
-    const totalUnits = 12
-    const totalLessons = 36 // Mock
+    const startDate = new Date(startDateStr)
+
+    // Derived Data: Aggregating all enrolled courses
+    const enrolledCoursesInfo = (user?.enrolledCourses || []).map(enc => {
+        const gradeDef = GRADES.find(g => g.id === enc.courseId)
+        return {
+            id: enc.courseId,
+            title: gradeDef?.title || enc.courseId,
+        }
+    })
+
+    const courseNames = enrolledCoursesInfo.map(c => c.title).join(' + ') || "Khóa học của bạn"
+    const totalUnits = enrolledCoursesInfo.length * 12 // Map each course to 12 mock units, or count real data if available
+    const totalLessons = enrolledCoursesInfo.length * 36 // Mock 36 lessons per course
+
     const endDate = new Date(startDate)
     endDate.setDate(startDate.getDate() + duration)
 
@@ -103,7 +120,7 @@ const StudyPlanSetup = ({ onComplete }: StudyPlanSetupProps) => {
             <Card className="p-6 bg-white border-2 border-slate-100 shadow-sm text-left space-y-4">
                 <div className="flex justify-between items-center border-b pb-4">
                     <span className="text-slate-500 font-medium">Khóa học</span>
-                    <span className="font-bold text-brand-blue text-lg">{courseName}</span>
+                    <span className="font-bold text-brand-blue text-right max-w-[60%] leading-tight text-lg">{courseNames}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
@@ -159,24 +176,24 @@ const StudyPlanSetup = ({ onComplete }: StudyPlanSetupProps) => {
                 <div className="flex justify-between items-center">
                     <label className="text-sm font-bold text-slate-700">Lịch học trong tuần</label>
                     <button
-                        onClick={() => setSelectedDays(prev => prev.length === 7 ? [] : [...DAYS_OF_WEEK])}
-                        className="text-xs text-brand-blue font-bold px-2 py-1 bg-brand-lightBlue rounded-md"
+                        onClick={() => setSelectedDays(prev => prev.length === 7 ? [] : DAYS_OF_WEEK.map(d => d.id))}
+                        className="text-xs text-brand-blue font-bold px-3 py-1.5 bg-brand-lightBlue hover:bg-blue-100 transition-colors rounded-md"
                     >
-                        {selectedDays.length === 7 ? 'Bỏ chọn' : 'Tất cả'}
+                        {selectedDays.length === 7 ? 'Bỏ chọn' : 'Chọn tất cả'}
                     </button>
                 </div>
-                <div className="flex justify-between gap-1">
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:justify-center gap-3 mt-4">
                     {DAYS_OF_WEEK.map(day => (
                         <button
-                            key={day}
-                            onClick={() => toggleDay(day)}
-                            className={`w-10 h-12 rounded-lg flex flex-col items-center justify-center text-xs font-bold transition-all ${selectedDays.includes(day)
-                                ? 'bg-brand-orange text-white shadow-md transform scale-105'
-                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            key={day.id}
+                            onClick={() => toggleDay(day.id)}
+                            className={`w-full sm:w-[calc(25%-0.75rem)] h-14 rounded-xl flex flex-col items-center justify-center text-sm font-bold transition-all ${selectedDays.includes(day.id)
+                                ? 'bg-brand-orange text-white shadow-md transform border-2 border-brand-orange scale-100 sm:scale-[1.02]'
+                                : 'bg-white border-2 border-slate-100 text-slate-500 hover:border-brand-orange/30'
                                 }`}
                         >
-                            <span>{day.charAt(0)}</span>
-                            {selectedDays.includes(day) && <div className="w-1 h-1 bg-white rounded-full mt-1" />}
+                            <span>{day.label}</span>
+                            {selectedDays.includes(day.id) && <div className="w-1.5 h-1.5 bg-white rounded-full mt-0.5" />}
                         </button>
                     ))}
                 </div>
@@ -185,10 +202,33 @@ const StudyPlanSetup = ({ onComplete }: StudyPlanSetupProps) => {
             {/* Start Date */}
             <div className="space-y-3">
                 <label className="text-sm font-bold text-slate-700 block">Ngày bắt đầu</label>
-                <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl">
-                    <Calendar className="text-slate-400" size={20} />
-                    <span className="text-slate-700 font-medium">Hôm nay ({new Date().toLocaleDateString('vi-VN')})</span>
-                    <span className="text-xs text-brand-blue font-bold ml-auto px-2 py-1 bg-brand-lightBlue rounded">Thay đổi</span>
+                <div
+                    className="relative flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl overflow-hidden hover:border-brand-blue/50 transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-brand-blue/30 focus-within:border-brand-blue"
+                    onClick={() => {
+                        const input = document.getElementById('start-date-input') as HTMLInputElement | null;
+                        if (input && typeof input.showPicker === 'function') {
+                            input.showPicker();
+                        } else if (input) {
+                            input.focus();
+                            input.click();
+                        }
+                    }}
+                >
+                    <Calendar className="text-brand-blue z-10 shrink-0" size={20} />
+                    <span className="text-slate-700 font-medium z-10 whitespace-nowrap">
+                        {startDateStr === new Date().toISOString().split('T')[0] ? 'Hôm nay' : ''} ({startDate.toLocaleDateString('vi-VN')})
+                    </span>
+                    <div className="ml-auto z-10 px-3 py-1.5 bg-brand-lightBlue text-brand-blue font-bold text-xs rounded-md shadow-sm pointer-events-none">Thay đổi</div>
+
+                    {/* Native date picker, hidden visually but functionally accessible */}
+                    <input
+                        id="start-date-input"
+                        type="date"
+                        value={startDateStr}
+                        onChange={(e) => setStartDateStr(e.target.value)}
+                        className="absolute w-0 h-0 opacity-0 pointer-events-none"
+                        min={new Date().toISOString().split('T')[0]} // Prevents picking past dates
+                    />
                 </div>
             </div>
         </div>
@@ -203,8 +243,8 @@ const StudyPlanSetup = ({ onComplete }: StudyPlanSetupProps) => {
 
             <Card className="bg-white border-2 border-brand-blue/10 shadow-lg overflow-hidden">
                 <div className="bg-brand-blue/5 p-4 border-b border-brand-blue/10 flex items-center justify-between">
-                    <span className="font-bold text-brand-blue">{courseName}</span>
-                    <span className="text-xs font-bold bg-white px-2 py-1 rounded text-slate-500 border">Xác nhận</span>
+                    <span className="font-bold text-brand-blue line-clamp-1 flex-1 mr-4">{courseNames}</span>
+                    <span className="text-xs font-bold bg-white px-2 py-1 rounded text-slate-500 border whitespace-nowrap">Xác nhận</span>
                 </div>
                 <div className="p-6 space-y-6">
                     <div className="flex items-start gap-4">
@@ -224,7 +264,11 @@ const StudyPlanSetup = ({ onComplete }: StudyPlanSetupProps) => {
                         </div>
                         <div>
                             <p className="text-sm text-slate-500 font-medium">Lịch học</p>
-                            <p className="text-lg font-bold text-slate-800">{selectedDays.join(', ')}</p>
+                            <p className="text-lg font-bold text-slate-800">
+                                {selectedDays.length > 0
+                                    ? selectedDays.map(d => DAYS_OF_WEEK.find(dw => dw.id === d)?.label).join(', ')
+                                    : 'Chưa chọn'}
+                            </p>
                             <p className="text-xs text-slate-400">{selectedDays.length} buổi / tuần</p>
                         </div>
                     </div>
@@ -309,7 +353,7 @@ const StudyPlanSetup = ({ onComplete }: StudyPlanSetupProps) => {
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 p-6 flex flex-col max-w-md mx-auto w-full">
+            <div className="flex-1 p-6 flex flex-col max-w-2xl mx-auto w-full justify-center">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={step}
@@ -330,7 +374,7 @@ const StudyPlanSetup = ({ onComplete }: StudyPlanSetupProps) => {
 
             {/* Bottom Bar */}
             <div className="p-6 bg-white border-t border-slate-100 safe-bottom">
-                <div className="max-w-md mx-auto w-full">
+                <div className="max-w-2xl mx-auto w-full">
                     {step === 'complete' ? (
                         <Button onClick={handleNext} size="lg" className="w-full bg-brand-orange hover:bg-orange-600 shadow-lg shadow-orange-500/20 text-lg font-bold py-6">
                             Bắt đầu học ngay <ChevronRight className="ml-2" />
