@@ -27,49 +27,96 @@ app.use((req, res) => {
 });
 
 // Socket.io logic
-const rooms = new Map(); // roomId -> Map(socket.id -> player)
+const rooms = new Map(); // roomId -> { players: Map(socket.id -> player), answersReceived: number }
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  socket.on('join_room', ({ roomId, player }) => {
+    socket.on('join_room', ({ roomId, player }) => {
     socket.join(roomId);
     
     // Store player info with socket inside the room
-    socket.playerInfo = { ...player, socketId: socket.id, score: 0, status: 'waiting' };
+    socket.playerInfo = { ...player, socketId: socket.id, score: 0, status: 'waiting', hasAnswered: false };
     
     if (!rooms.has(roomId)) {
-        rooms.set(roomId, new Map());
+        rooms.set(roomId, { players: new Map(), answersReceived: 0 });
     }
-    const roomPlayers = rooms.get(roomId);
-    roomPlayers.set(socket.id, socket.playerInfo);
+    const roomState = rooms.get(roomId);
+    roomState.players.set(socket.id, socket.playerInfo);
 
     console.log(`Player ${player.name} joined room ${roomId}`);
 
     // Broadcast updated player list to everyone in the room
-    io.to(roomId).emit('room_state_update', Array.from(roomPlayers.values()));
+    io.to(roomId).emit('room_state_update', Array.from(roomState.players.values()));
   });
 
-  socket.on('update_score', ({ roomId, score }) => {
-    const roomPlayers = rooms.get(roomId);
-    if (roomPlayers && roomPlayers.has(socket.id)) {
-        const player = roomPlayers.get(socket.id);
+  socket.on('submit_answer', ({ roomId, score }) => {
+    const roomState = rooms.get(roomId);
+    if (!roomState) return;
+    
+    const player = roomState.players.get(socket.id);
+    if (player && !player.hasAnswered) {
         player.score = score;
+        player.hasAnswered = true;
+        roomState.answersReceived += 1;
         
-        // Broadcast all scores to the room
-        io.to(roomId).emit('room_state_update', Array.from(roomPlayers.values()));
+        // Broadcast updated scores
+        io.to(roomId).emit('room_state_update', Array.from(roomState.players.values()));
+
+        console.log(`Room ${roomId}: ${roomState.answersReceived}/${roomState.players.size} answers received.`);
+
+        // Check if everyone has answered
+        if (roomState.answersReceived >= roomState.players.size) {
+            console.log(`Room ${roomId}: Round finished. Broadcasting results.`);
+            io.to(roomId).emit('round_finished');
+
+            // Reset for next round after a delay
+            setTimeout(() => {
+                if (rooms.has(roomId)) {
+                    const currentRoomState = rooms.get(roomId);
+                    currentRoomState.answersReceived = 0;
+                    for (const [, p] of currentRoomState.players) {
+                        p.hasAnswered = false;
+                    }
+                    console.log(`Room ${roomId}: Broadcasting next question.`);
+                    io.to(roomId).emit('next_question');
+                }
+            }, 3000); // 3 second delay for leaderboard
+        }
     }
   });
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    for (const [roomId, roomPlayers] of rooms.entries()) {
-        if (roomPlayers.has(socket.id)) {
-            roomPlayers.delete(socket.id);
-            if (roomPlayers.size === 0) {
+    for (const [roomId, roomState] of rooms.entries()) {
+        if (roomState.players.has(socket.id)) {
+            const player = roomState.players.get(socket.id);
+            if (player.hasAnswered) {
+                // If they already answered this round, decrement since they left
+                roomState.answersReceived -= 1; 
+            }
+            
+            roomState.players.delete(socket.id);
+            
+            if (roomState.players.size === 0) {
               rooms.delete(roomId);
             } else {
-              io.to(roomId).emit('room_state_update', Array.from(roomPlayers.values()));
+              io.to(roomId).emit('room_state_update', Array.from(roomState.players.values()));
+              
+              // Edge case: someone disconnects while we're waiting for ONLY them
+              if (roomState.answersReceived >= roomState.players.size && roomState.players.size > 0) {
+                 io.to(roomId).emit('round_finished');
+                 setTimeout(() => {
+                     if (rooms.has(roomId)) {
+                         const currentRoomState = rooms.get(roomId);
+                         currentRoomState.answersReceived = 0;
+                         for (const [, p] of currentRoomState.players) {
+                             p.hasAnswered = false;
+                         }
+                         io.to(roomId).emit('next_question');
+                     }
+                 }, 3000);
+              }
             }
         }
     }

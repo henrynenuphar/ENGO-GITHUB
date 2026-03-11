@@ -28,6 +28,7 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
     const [showLeaderboard, setShowLeaderboard] = useState(false)
     const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
     const [isAnswerRevealed, setIsAnswerRevealed] = useState(false)
+    const [waitingForOthers, setWaitingForOthers] = useState(false)
 
     const [opponents, setOpponents] = useState<Opponent[]>([])
 
@@ -44,14 +45,36 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
                 avatarImage: o.avatarImage
             })))
         }
+
+        const handleRoundFinished = () => {
+            console.log("Round finished received from server. Showing leaderboard.");
+            setShowLeaderboard(true);
+            setWaitingForOthers(false);
+            
+            // Check if it's the end of the game
+            // We use a functional state update or calculate it locally if needed,
+            // but the timeout below will handle the end game check locally
+        }
+
+        const handleNextQuestion = () => {
+            console.log("Next question received from server.");
+            setShowLeaderboard(false);
+            setCurrentQuestionIndex(prev => prev + 1);
+        }
         
         socket.on('room_state_update', handleStateUpdate)
+        socket.on('round_finished', handleRoundFinished)
+        socket.on('next_question', handleNextQuestion)
         
         // Initial broadcast of score 0
-        socket.emit('update_score', { roomId, score: 0 })
+        socket.emit('submit_answer', { roomId, score: 0 }) // using submit_answer to initialize but handled specially? No, wait. 
+        // Actually, 'update_score' was removed, we should just emit an initial state or nothing since join_room does it.
+        // The join_room already broadcasts the 0 score. so we don't need to emit anything here.
         
         return () => {
             socket.off('room_state_update', handleStateUpdate)
+            socket.off('round_finished', handleRoundFinished)
+            socket.off('next_question', handleNextQuestion)
             socket.disconnect() // Leave room / disconnect when game ends
         }
     }, [roomId])
@@ -63,6 +86,7 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
         setTimeLeft(15)
         setSelectedAnswer(null)
         setIsAnswerRevealed(false)
+        setWaitingForOthers(false)
 
         startTimer()
 
@@ -88,11 +112,12 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
     }
 
     const handleAnswerClick = (answer: string) => {
-        if (selectedAnswer || isAnswerRevealed) return // Already answered
+        if (selectedAnswer || isAnswerRevealed || waitingForOthers) return // Already answered
 
         stopTimer()
         setSelectedAnswer(answer)
         setIsAnswerRevealed(true)
+        setWaitingForOthers(true)
 
         const question = questions[currentQuestionIndex]
         const isCorrect = answer === question.correctAnswer
@@ -101,39 +126,33 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
         const points = isCorrect ? 1000 + (timeLeft * 50) : 0
         const newScore = score + points
         setScore(newScore)
-        socket.emit('update_score', { roomId, score: newScore })
+        
+        // Send answer to server
+        socket.emit('submit_answer', { roomId, score: newScore })
 
-        setTimeout(() => {
-            if (currentQuestionIndex >= questions.length - 1) {
-                // End Game
+        // Check if it's the final question locally so we can finish the game
+        if (currentQuestionIndex >= questions.length - 1) {
+            // We still want to wait for the leaderboard to show briefly
+            setTimeout(() => {
                 const myFinalRank = getMyFinalRank(newScore)
                 onFinish(newScore, myFinalRank)
-            } else {
-                setShowLeaderboard(true)
-                // Show leaderboard for 3 seconds then go to next question
-                setTimeout(() => {
-                    setShowLeaderboard(false)
-                    setCurrentQuestionIndex(prev => prev + 1)
-                }, 3000)
-            }
-        }, 2000)
+            }, 3000) // Delay before moving to result screen
+        }
     }
 
     const handleTimeOut = () => {
         setIsAnswerRevealed(true)
+        setWaitingForOthers(true)
+        
+        // Emit 0 points for timeout to unblock the server
+        socket.emit('submit_answer', { roomId, score })
 
-        setTimeout(() => {
-            if (currentQuestionIndex >= questions.length - 1) {
+        if (currentQuestionIndex >= questions.length - 1) {
+            setTimeout(() => {
                 const myFinalRank = getMyFinalRank(score)
                 onFinish(score, myFinalRank)
-            } else {
-                setShowLeaderboard(true)
-                setTimeout(() => {
-                    setShowLeaderboard(false)
-                    setCurrentQuestionIndex(prev => prev + 1)
-                }, 3000)
-            }
-        }, 2000)
+            }, 3000)
+        }
     }
 
     const getMyFinalRank = (myScore: number) => {
@@ -271,6 +290,17 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
                             <span className="w-2 h-2 rounded-full bg-red-500"></span>
                             Live: {opponents.length + 1} người
                         </div>
+
+                        {waitingForOthers && (
+                            <div className="absolute top-10 right-4 md:top-14 flex items-center gap-2 bg-blue-50 text-brand-blue px-3 py-1.5 rounded-full text-xs font-bold border border-blue-100 animate-pulse z-10 shadow-sm">
+                                <span className="flex gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-brand-blue animate-bounce"></span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-brand-blue animate-bounce" style={{animationDelay: '0.1s'}}></span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-brand-blue animate-bounce" style={{animationDelay: '0.2s'}}></span>
+                                </span>
+                                Đang chờ người khác...
+                            </div>
+                        )}
 
                         {question.options.map((option, idx) => {
                             const labels = ['A', 'B', 'C', 'D']
