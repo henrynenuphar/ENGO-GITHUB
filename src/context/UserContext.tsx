@@ -150,13 +150,24 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         const dbString = localStorage.getItem('engo_users_db')
         const db: Record<string, User> = dbString ? JSON.parse(dbString) : {}
 
+        // Phone specific grants
+        const grade5Phones = ['0832123410', '0832123402', '0832123403', '0832123404', '0832123405', PREMIUM_PHONE];
+        const kinderPhones = ['0832123407', '0832123408', '0832123409', '0832123410', PREMIUM_PHONE];
+        const hasGrade5 = grade5Phones.includes(phone);
+        const hasKinder = kinderPhones.includes(phone);
+        const expiryDate = new Date('2027-01-26').getTime();
+
+        const calculateInitialCourses = () => {
+            const courses = [];
+            if (hasGrade5 || isPremium) courses.push({ courseId: 'grade-5', currentLessonIndex: 0, lastAccessed: Date.now(), expiryDate });
+            if (hasKinder || isPremium) courses.push({ courseId: 'kindergarten', currentLessonIndex: 0, lastAccessed: Date.now(), expiryDate });
+            return courses;
+        };
+
         // 2. Check if user exists
         let userToLogin = db[phone]
 
         if (!userToLogin) {
-            // Purchase Date: 26/01/2026 -> Expiry: 26/01/2027
-            const expiryDate = new Date('2027-01-26').getTime()
-
             userToLogin = {
                 id: isPremium ? 'vip_user_123' : `user_${Date.now()}`,
                 name: name || (isPremium ? 'Henry (VIP)' : 'Bạn Mới'),
@@ -169,14 +180,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
                 dailyLessonCount: 0,
                 dailyCompletedIds: [],
                 lastDailyDate: Date.now(),
-                enrolledCourses: isPremium ? [
-                    {
-                        courseId: 'grade-5',
-                        currentLessonIndex: 0, // Start from Unit 1
-                        lastAccessed: Date.now(),
-                        expiryDate: expiryDate
-                    }
-                ] : []
+                enrolledCourses: calculateInitialCourses()
             }
 
             // Save new user to DB
@@ -190,11 +194,19 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
             }
         } else {
             // Restore existing user
-            // Ensure compatibility/migrations if needed (simplified here)
             if (isPremium && !userToLogin.isPremium) {
                 userToLogin.isPremium = true;
                 userToLogin.name = 'Henry (VIP)'
             }
+            
+            // Auto grant if missing
+            if (hasGrade5 && !userToLogin.enrolledCourses.find(c => c.courseId === 'grade-5')) {
+                userToLogin.enrolledCourses.push({ courseId: 'grade-5', currentLessonIndex: 0, lastAccessed: Date.now(), expiryDate });
+            }
+            if (hasKinder && !userToLogin.enrolledCourses.find(c => c.courseId === 'kindergarten')) {
+                userToLogin.enrolledCourses.push({ courseId: 'kindergarten', currentLessonIndex: 0, lastAccessed: Date.now(), expiryDate });
+            }
+
             toast.success(`Chào mừng trở lại, ${userToLogin.name}!`)
         }
 

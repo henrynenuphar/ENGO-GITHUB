@@ -31,7 +31,7 @@ export const ChallengeResult = ({ score, rank, onHome }: { score: number, rank: 
     }, [rank])
 
     return (
-        <div className="flex flex-col items-center justify-center p-6 text-center space-y-6 flex-1 w-full relative overflow-hidden animate-in fade-in duration-700">
+        <div className="flex flex-col items-center justify-center p-6 text-center space-y-6 flex-1 w-full relative overflow-y-auto animate-in fade-in duration-700">
             {/* Confetti container */}
             {rank <= 3 && (
                 <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
