@@ -114,8 +114,8 @@ const FlashcardGame: React.FC<FlashcardGameProps> = ({ data, onComplete, onExit 
             </div>
 
             {/* Card Container - ~65-70% Height */}
-            <div className="flex-1 flex items-center justify-center p-4 min-h-0 relative z-10">
-                <div className="w-full max-w-sm h-full max-h-[85%] relative perspective-1000 group cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
+            <div className="flex-1 flex items-center justify-center p-4 min-h-0 relative z-10 w-full">
+                <div className="w-full max-w-sm aspect-[3/4] max-h-[65vh] min-h-[400px] relative perspective-1000 group cursor-pointer mx-auto" onClick={() => setIsFlipped(!isFlipped)}>
                     <motion.div
                         className="w-full h-full relative preserve-3d transition-all duration-500"
                         animate={{ rotateY: isFlipped ? 180 : 0 }}
