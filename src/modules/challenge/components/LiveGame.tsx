@@ -1,3 +1,5 @@
+declare global { interface Window { __violympicBgMusic?: HTMLAudioElement | null } }
+
 import React, { useState, useEffect, useRef } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -24,12 +26,22 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
     const bgMusicRef = useRef<HTMLAudioElement | null>(null)
 
     useEffect(() => {
-        bgMusicRef.current = new Audio('/sounds/exciting_bgm.mp3')
-        bgMusicRef.current.loop = true
-        bgMusicRef.current.volume = 0.5
+        if (window.__violympicBgMusic) {
+            bgMusicRef.current = window.__violympicBgMusic
+        } else {
+            bgMusicRef.current = new Audio('/sounds/exciting_bgm.mp3')
+            bgMusicRef.current.loop = true
+            bgMusicRef.current.volume = 0.5
+        }
 
-        const playMusic = () => {
-            bgMusicRef.current?.play().catch(e => console.log("Audio autoplay blocked", e))
+        const playMusic = async () => {
+            try {
+                if (bgMusicRef.current) {
+                    await bgMusicRef.current.play()
+                }
+            } catch (e) {
+                console.log("Audio autoplay blocked by browser policy. Interaction needed.", e)
+            }
         }
         playMusic()
 
@@ -42,10 +54,14 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
     }, [])
 
     const playSound = (type: 'correct' | 'wrong') => {
-        const url = type === 'correct' ? '/audio/correct.wav' : '/audio/wrong.wav'
-        const audio = new Audio(url)
-        audio.volume = type === 'correct' ? 0.6 : 0.4
-        audio.play().catch(() => { })
+        try {
+            const url = type === 'correct' ? '/audio/correct.wav' : '/audio/wrong.wav'
+            const audio = new Audio(url)
+            audio.volume = type === 'correct' ? 0.6 : 0.4
+            audio.play().catch(e => console.log("Sound effect blocked", e))
+        } catch (error) {
+            console.error("Audio playback error:", error)
+        }
     }
 
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
@@ -163,9 +179,9 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
 
         // Check if it's the final question locally so we can finish the game
         if (currentQuestionIndex >= questions.length - 1) {
-            // We still want to wait for the leaderboard to show briefly
             setTimeout(() => {
                 if (bgMusicRef.current) bgMusicRef.current.pause()
+                socket.emit('game_finished', { roomId }) // Trigger webhook and room cleanup
                 const myFinalRank = getMyFinalRank(newScore)
                 onFinish(newScore, myFinalRank)
             }, 3000) // Delay before moving to result screen
@@ -183,6 +199,7 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
         if (currentQuestionIndex >= questions.length - 1) {
             setTimeout(() => {
                 if (bgMusicRef.current) bgMusicRef.current.pause()
+                socket.emit('game_finished', { roomId }) // Trigger webhook and room cleanup
                 const myFinalRank = getMyFinalRank(score)
                 onFinish(score, myFinalRank)
             }, 3000)
@@ -190,6 +207,8 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
     }
 
     const getMyFinalRank = (myScore: number) => {
+        // If there are no opponents, rank is 1
+        if (opponents.length === 0) return 1;
         const allScores = [...opponents.map(o => o.score), myScore]
         allScores.sort((a, b) => b - a)
         return allScores.indexOf(myScore) + 1

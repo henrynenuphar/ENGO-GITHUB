@@ -1,3 +1,5 @@
+declare global { interface Window { __violympicBgMusic?: HTMLAudioElement | null } }
+
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
@@ -22,6 +24,9 @@ const ChallengeScreen = () => {
     const handleBack = () => {
         if (phase === 'playing' || phase === 'waiting') {
             if (window.confirm("Bạn có chắc muốn thoát? Kết quả sẽ không được lưu.")) {
+                if (window.__violympicBgMusic) {
+                    window.__violympicBgMusic.pause()
+                }
                 navigate('/app/dashboard')
             }
         } else if (phase === 'avatarSelection') {
@@ -32,6 +37,19 @@ const ChallengeScreen = () => {
     }
 
     const handleSelectRoom = (roomId: string) => {
+        // Pre-initialize audio on user interaction to bypass autoplay restrictions
+        if (!window.__violympicBgMusic) {
+            const audio = new Audio('/sounds/exciting_bgm.mp3')
+            audio.loop = true
+            audio.volume = 0.5
+            window.__violympicBgMusic = audio
+            
+            // Silent play-pause trick to unlock the audio context
+            audio.play().then(() => {
+                audio.pause()
+            }).catch(e => console.log("Audio unlock failed:", e))
+        }
+
         setSelectedRoomId(roomId)
         setPhase('avatarSelection')
     }
