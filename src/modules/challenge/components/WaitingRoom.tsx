@@ -134,11 +134,11 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
             </div>
 
             {/* Action */}
-            <Button
-                disabled={true}
-                className={`w-full max-w-sm h-14 text-lg font-black shadow-xl transition-all ${timeLeft <= 0 ? 'bg-brand-blue shadow-blue-500/30 wiggling' : 'bg-slate-300 text-slate-500 opacity-50'}`}
+            <Button 
+                variant="primary" 
+                className={`w-full max-w-sm h-14 text-lg font-black shadow-xl transition-all ${timeLeft !== null && timeLeft <= 0 ? 'bg-brand-blue shadow-blue-500/30 wiggling' : 'bg-slate-300 text-slate-500 opacity-50'}`}
             >
-                {timeLeft > 0 ? 'CHỜ ĐỢI...' : 'CHUẨN BỊ VÀO PHÒNG!'}
+                {timeLeft !== null && timeLeft > 0 ? 'CHỜ ĐỢI...' : 'CHUẨN BỊ VÀO PHÒNG!'}
             </Button>
 
             <style dangerouslySetInnerHTML={{
