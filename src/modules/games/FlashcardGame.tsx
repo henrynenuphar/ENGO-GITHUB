@@ -122,15 +122,14 @@ const FlashcardGame: React.FC<FlashcardGameProps> = ({ data, onComplete, onExit 
                         initial={false}
                     >
                         {/* Front Side */}
-                        <Card className="absolute inset-0 backface-hidden flex flex-col items-center p-4 bg-white shadow-xl rounded-3xl border-2 border-slate-100 overflow-hidden">
-                            <div className="flex-1 flex flex-col items-center justify-center space-y-3 w-full text-center">
-                                {/* Image Removed */}
+                        <Card className="absolute inset-0 backface-hidden flex flex-col p-4 md:p-6 bg-white shadow-xl rounded-3xl border-2 border-slate-100 overflow-hidden">
+                            <div className="flex-1 flex flex-col items-center justify-center space-y-4 w-full text-center h-full">
 
                                 {/* Word & IPA */}
                                 <div className="space-y-1">
-                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-tight">{currentWord.word}</h2>
+                                    <h2 className="text-3xl md:text-5xl font-black text-slate-800 tracking-tight leading-tight">{currentWord.word}</h2>
                                     {currentWord.ipa && (
-                                        <p className="text-slate-400 font-mono text-base">{currentWord.ipa}</p>
+                                        <p className="text-slate-400 font-mono text-base md:text-lg">{currentWord.ipa}</p>
                                     )}
                                 </div>
 
@@ -144,14 +143,12 @@ const FlashcardGame: React.FC<FlashcardGameProps> = ({ data, onComplete, onExit 
                                     <Volume2 size={16} className="mr-2" /> Listen
                                 </Button>
 
-                                {/* Example (Now on Front) */}
-                                <div className="bg-slate-50 p-3 rounded-2xl w-full border border-slate-100 mt-1 flex-1 flex flex-col justify-center max-h-[45%]">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block text-left">Example</span>
-                                    <p className="text-base font-medium leading-relaxed text-slate-700 text-left italic line-clamp-4">
+                                {/* Example Container */}
+                                <div className="bg-slate-50 p-4 rounded-xl w-full border border-slate-100 mt-2 flex flex-col justify-center overflow-y-auto">
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block text-left">Example</span>
+                                    <p className="text-sm md:text-base font-medium leading-relaxed text-slate-700 text-left italic">
                                         {(() => {
                                             const sentence = currentWord.exampleSentence || ""
-                                            // Prefer pastTense if exists and is used, otherwise use the base word.
-                                            // We'll actually check both to see which one is in the sentence.
                                             let target = "";
                                             if (currentWord.pastTense && sentence.toLowerCase().includes(currentWord.pastTense.toLowerCase())) {
                                                 target = currentWord.pastTense;
@@ -159,16 +156,8 @@ const FlashcardGame: React.FC<FlashcardGameProps> = ({ data, onComplete, onExit 
                                                 target = currentWord.word;
                                             }
 
-                                            // If no exact match of the full phrase (either past or present), fallback to splitting
-                                            // and just doing the best we can. 
-                                            // Actually, since we updated all sentences to present tense, target should exactly match `currentWord.word`.
+                                            if (!target) return `"${sentence}"`
 
-                                            if (!target) {
-                                                // Fallback: Just return the sentence if we really can't find a match
-                                                return `"${sentence}"`
-                                            }
-
-                                            // Escape regex special characters in target
                                             const escapedTarget = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                                             const parts = sentence.split(new RegExp(`(${escapedTarget})`, 'gi'))
 
@@ -180,9 +169,13 @@ const FlashcardGame: React.FC<FlashcardGameProps> = ({ data, onComplete, onExit 
                                     </p>
                                 </div>
                             </div>
-                            <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-2 flex items-center gap-1 animate-pulse shrink-0">
-                                <RotateCw size={10} /> Tap for Meaning
-                            </p>
+                            
+                            {/* Footer hint */}
+                            <div className="mt-auto pt-4 flex justify-center w-full">
+                                <p className="text-xs font-bold text-slate-300 uppercase tracking-widest flex items-center gap-1 animate-pulse">
+                                    <RotateCw size={12} /> Tap for Meaning
+                                </p>
+                            </div>
                         </Card>
 
                         {/* Back Side */}
