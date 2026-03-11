@@ -16,7 +16,8 @@ export interface ViolympicQuestion {
 export const VIOLYMPIC_ROOMS = [
     { id: 'room_grade_3', name: 'Lớp 3' },
     { id: 'room_grade_4', name: 'Lớp 4' },
-    { id: 'room_grade_5', name: 'LỚP KHỞI NGHIỆP', pin: '1403' },
+    { id: 'room_grade_5', name: 'Lớp 5' },
+    { id: 'room_startup', name: 'LỚP KHỞI NGHIỆP', pin: '1403' },
 ]
 
 export const VIOLYMPIC_QUESTIONS: Record<string, ViolympicQuestion[]> = {
@@ -45,6 +46,18 @@ export const VIOLYMPIC_QUESTIONS: Record<string, ViolympicQuestion[]> = {
         { id: 10, text: 'Don\'t forget to ________ your hands before eating.', options: ['wash', 'make', 'take', 'brush'], correctAnswer: 'wash' },
     ],
     'room_grade_5': [
+        { id: 1, text: 'A large area of land covered with many trees and plants is a ________.', options: ['desert', 'forest', 'beach', 'river'], correctAnswer: 'forest' },
+        { id: 2, text: 'We have ________ finished our English homework.', options: ['do', 'did', 'just', 'yet'], correctAnswer: 'just' },
+        { id: 3, text: 'She was so happy when she won the first prize. She was over the ________.', options: ['sun', 'star', 'sky', 'moon'], correctAnswer: 'moon' },
+        { id: 4, text: 'He usually goes swimming, but today he ________ karate with his friends.', options: ['plays', 'makes', 'takes', 'does'], correctAnswer: 'does' },
+        { id: 5, text: 'Which word is the odd one out?', options: ['Crocodile', 'Elephant', 'Lion', 'Table'], correctAnswer: 'Table' },
+        { id: 6, text: 'This famous cultural event is called the "Day of the Dead". In which country is it traditionally celebrated?', options: ['The USA', 'Brazil', 'Mexico', 'Spain'], correctAnswer: 'Mexico', imageUrl: dayOfTheDeadImg },
+        { id: 7, text: 'While my mother ________ dinner, the telephone rang.', options: ['cooks', 'cooked', 'is cooking', 'was cooking'], correctAnswer: 'was cooking' },
+        { id: 8, text: 'Don\'t worry about the small mistakes. Just do your best and don\'t make a ________ out of a molehill.', options: ['mountain', 'hill', 'river', 'building'], correctAnswer: 'mountain' },
+        { id: 9, text: 'This unique and famous pagoda is called the One Pillar Pagoda. It is located in which city of Vietnam?', options: ['Hue', 'Da Nang', 'Hanoi', 'Ho Chi Minh City'], correctAnswer: 'Hanoi', imageUrl: onePillarImg },
+        { id: 10, text: 'It\'s going to rain. Remember to ________ an umbrella with you.', options: ['do', 'take', 'make', 'catch'], correctAnswer: 'take' },
+    ],
+    'room_startup': [
         { id: 1, text: 'Jennie feels sick. She ate ________ candy last night.', options: ['much', 'many', 'a lot of', 'more'], correctAnswer: 'much' },
         { id: 2, text: 'Ms. Tuyen, who holds a Master\'s degree, has taught us many great lessons and real-life ________ in her Entrepreneurship class.', options: ['case studies', 'homeworks', 'games', 'test'], correctAnswer: 'case studies' },
         { id: 3, text: 'After President Trump\'s recent speech, the news is talking a lot about the conflicts in the Middle ________.', options: ['East', 'West', 'South', 'North'], correctAnswer: 'East' },
