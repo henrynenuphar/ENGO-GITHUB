@@ -9,7 +9,7 @@ import { socket } from '@/lib/socket'
 import { useAuth } from '@/context/UserContext'
 
 export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string, userAvatarId: string, onStart: () => void }) => {
-    const [timeLeft, setTimeLeft] = useState<number | null>(null)
+    const [timeLeft, setTimeLeft] = useState(15) // Shorter time for demo
     const [players, setPlayers] = useState<any[]>([])
     const { user } = useAuth()
 
@@ -27,21 +27,11 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
         })
         
         const handleStateUpdate = (payload: any) => {
-            // Support both old array format and new object payload { players, matchStartTime }
+            // Support both old array format and new object payload just in case server hasn't updated
             if (Array.isArray(payload)) {
                 setPlayers(payload)
-            } else {
+            } else if (payload.players) {
                 setPlayers(payload.players)
-                
-                // Set initial time left based on server timestamp
-                if (payload.matchStartTime) {
-                    const remainingMs = payload.matchStartTime - Date.now()
-                    setTimeLeft(Math.max(0, Math.ceil(remainingMs / 1000)))
-                    
-                    // Store the target time in a ref or just rely on the effect
-                    // We'll use a data attribute on window or just a simple interval
-                    window.__matchStartTime = payload.matchStartTime
-                }
             }
         }
         
@@ -55,8 +45,6 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
 
     // Countdown timer
     useEffect(() => {
-        if (timeLeft === null) return;
-        
         if (timeLeft <= 0) {
             // Slight delay to ensure UI updates before switching
             setTimeout(() => {
@@ -66,13 +54,8 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
         }
 
         const timer = setInterval(() => {
-            if (window.__matchStartTime) {
-                const remainingMs = window.__matchStartTime - Date.now()
-                setTimeLeft(Math.max(0, Math.ceil(remainingMs / 1000)))
-            } else {
-                setTimeLeft(prev => (prev !== null ? prev - 1 : 0))
-            }
-        }, 500) // update twice a second for smoother sync
+            setTimeLeft(prev => prev - 1)
+        }, 1000)
         
         return () => clearInterval(timer)
     }, [timeLeft, onStart])
@@ -99,7 +82,7 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
                 <div className="absolute inset-0 bg-brand-blue/10 animate-ping opacity-20"></div>
                 <Clock className="text-brand-blue mb-2" size={32} />
                 <div className="text-4xl font-black text-slate-800 font-mono tracking-tighter">
-                    {timeLeft !== null ? formatTime(timeLeft) : "--:--"}
+                    {formatTime(timeLeft)}
                 </div>
                 <p className="text-xs font-bold text-brand-blue uppercase tracking-wider mt-1">Bắt đầu sau</p>
             </Card>
@@ -136,9 +119,9 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
             {/* Action */}
             <Button 
                 variant="primary" 
-                className={`w-full max-w-sm h-14 text-lg font-black shadow-xl transition-all ${timeLeft !== null && timeLeft <= 0 ? 'bg-brand-blue shadow-blue-500/30 wiggling' : 'bg-slate-300 text-slate-500 opacity-50'}`}
+                className={`w-full max-w-sm h-14 text-lg font-black shadow-xl transition-all ${timeLeft <= 0 ? 'bg-brand-blue shadow-blue-500/30 wiggling' : 'bg-slate-300 text-slate-500 opacity-50'}`}
             >
-                {timeLeft !== null && timeLeft > 0 ? 'CHỜ ĐỢI...' : 'CHUẨN BỊ VÀO PHÒNG!'}
+                {timeLeft > 0 ? 'CHỜ ĐỢI...' : 'CHUẨN BỊ VÀO PHÒNG!'}
             </Button>
 
             <style dangerouslySetInnerHTML={{

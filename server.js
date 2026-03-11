@@ -49,12 +49,22 @@ io.on('connection', (socket) => {
     if (!rooms.has(roomId)) {
         rooms.set(roomId, {
             players: new Map(),
-            answersReceived: 0,
-            matchStartTime: Date.now() + 10000 // Start 10s from now
+            answersReceived: 0
         });
     }
 
     const roomState = rooms.get(roomId);
+    
+    // Fix 1 account 2 players: remove existing connection with the same name
+    for (const [existingSocketId, existingPlayer] of roomState.players.entries()) {
+        if (existingPlayer.name === name) {
+            roomState.players.delete(existingSocketId);
+            if (existingPlayer.hasAnswered) {
+                roomState.answersReceived = Math.max(0, roomState.answersReceived - 1);
+            }
+        }
+    }
+
     roomState.players.set(socket.id, {
         id: socket.id,
         name,
@@ -66,11 +76,8 @@ io.on('connection', (socket) => {
 
     console.log(`User ${socket.id} (${name}) joined room ${roomId}`);
     
-    // Broadcast updated player list and the synced timer
-    io.to(roomId).emit('room_state_update', {
-        players: Array.from(roomState.players.values()),
-        matchStartTime: roomState.matchStartTime
-    });
+    // Broadcast updated player list
+    io.to(roomId).emit('room_state_update', Array.from(roomState.players.values()));
   });
 
   socket.on('submit_answer', ({ roomId, score }) => {
@@ -122,19 +129,16 @@ io.on('connection', (socket) => {
         
         // Use Promise.all to send all players asynchronously without blocking
         Promise.all(playersArr.map((player, index) => {
-             const payload = {
-                room: roomId,
-                playerName: player.name,
-                phoneNumber: player.phoneNumber,
-                score: player.score,
-                rank: index + 1
-            };
+             const url = new URL(webhookUrl);
+             url.searchParams.append('room', roomId);
+             url.searchParams.append('playerName', player.name);
+             url.searchParams.append('phoneNumber', player.phoneNumber || 'N/A');
+             url.searchParams.append('score', player.score.toString());
+             url.searchParams.append('rank', (index + 1).toString());
             
-            return fetch(webhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }).catch(e => console.error("Webhook POST failed:", e));
+            return fetch(url.toString(), {
+                method: 'GET'
+            }).catch(e => console.error("Webhook GET failed:", e));
         })).then(() => console.log(`Room ${roomId}: All results sent.`));
 
         // Clean up room after game finishes

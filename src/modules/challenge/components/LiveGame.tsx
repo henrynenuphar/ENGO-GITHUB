@@ -22,48 +22,6 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
     const userAvatarUrl = AVATARS.find(a => a.id === userAvatarId)?.image || AVATARS[0].image
     const roomTitle = roomId === 'room_grade_3' ? 'LỚP 3' : roomId === 'room_grade_4' ? 'LỚP 4' : 'LỚP 5'
 
-    // --- Audio Init ---
-    const bgMusicRef = useRef<HTMLAudioElement | null>(null)
-
-    useEffect(() => {
-        if (window.__violympicBgMusic) {
-            bgMusicRef.current = window.__violympicBgMusic
-        } else {
-            bgMusicRef.current = new Audio('/sounds/exciting_bgm.mp3')
-            bgMusicRef.current.loop = true
-            bgMusicRef.current.volume = 0.5
-        }
-
-        const playMusic = async () => {
-            try {
-                if (bgMusicRef.current) {
-                    await bgMusicRef.current.play()
-                }
-            } catch (e) {
-                console.log("Audio autoplay blocked by browser policy. Interaction needed.", e)
-            }
-        }
-        playMusic()
-
-        return () => {
-            if (bgMusicRef.current) {
-                bgMusicRef.current.pause()
-                bgMusicRef.current = null
-            }
-        }
-    }, [])
-
-    const playSound = (type: 'correct' | 'wrong') => {
-        try {
-            const url = type === 'correct' ? '/audio/correct.wav' : '/audio/wrong.wav'
-            const audio = new Audio(url)
-            audio.volume = type === 'correct' ? 0.6 : 0.4
-            audio.play().catch(e => console.log("Sound effect blocked", e))
-        } catch (error) {
-            console.error("Audio playback error:", error)
-        }
-    }
-
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
     const [timeLeft, setTimeLeft] = useState(15) // 15 seconds per question for live game
     const [score, setScore] = useState(0)
@@ -166,9 +124,6 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
         const question = questions[currentQuestionIndex]
         const isCorrect = answer === question.correctAnswer
 
-        // Play sound effect
-        playSound(isCorrect ? 'correct' : 'wrong')
-
         // Calculate point: 1000 base + 50 * timeLeft
         const points = isCorrect ? 1000 + (timeLeft * 50) : 0
         const newScore = score + points
@@ -180,7 +135,6 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
         // Check if it's the final question locally so we can finish the game
         if (currentQuestionIndex >= questions.length - 1) {
             setTimeout(() => {
-                if (bgMusicRef.current) bgMusicRef.current.pause()
                 socket.emit('game_finished', { roomId }) // Trigger webhook and room cleanup
                 const myFinalRank = getMyFinalRank(newScore)
                 onFinish(newScore, myFinalRank)
@@ -191,14 +145,12 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
     const handleTimeOut = () => {
         setIsAnswerRevealed(true)
         setWaitingForOthers(true)
-        playSound('wrong')
         
         // Emit 0 points for timeout to unblock the server
         socket.emit('submit_answer', { roomId, score })
 
         if (currentQuestionIndex >= questions.length - 1) {
             setTimeout(() => {
-                if (bgMusicRef.current) bgMusicRef.current.pause()
                 socket.emit('game_finished', { roomId }) // Trigger webhook and room cleanup
                 const myFinalRank = getMyFinalRank(score)
                 onFinish(score, myFinalRank)
