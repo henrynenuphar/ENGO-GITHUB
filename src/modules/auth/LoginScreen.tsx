@@ -24,7 +24,7 @@ const LoginScreen = () => {
         '0832123402': { pass: 'nguyetanh02', name: 'Nguyệt Anh' },
         '0832123403': { pass: 'vananh03', name: 'Vân Anh' },
         '0832123404': { pass: 'vietanh04', name: 'Việt Anh' },
-        '0832123405': { pass: 'thuha05', name: 'Thu Hà' },
+        '0832123405': { pass: 'thuha0505', name: 'Thu Hà' },
         '0832123406': { pass: 'baominh06', name: 'Bảo Minh' },
         '0832123407': { pass: 'vanquyen07', name: 'Văn Quyền' },
         '0832123408': { pass: 'bichtram08', name: 'Bích Trâm' },
