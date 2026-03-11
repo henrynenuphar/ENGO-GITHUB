@@ -26,28 +26,51 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-// Socket.io logic
-const rooms = new Map(); // roomId -> { players: Map(socket.id -> player), answersReceived: number }
+// Store state per room
+const rooms = new Map();
+// Structure: 
+// rooms.get('roomId') -> { 
+//   players: Map(socketId -> { id, name, score, avatarImage, hasAnswered, phoneNumber }),
+//   answersReceived: number,
+//   matchStartTime: number
+// }
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
     socket.on('join_room', ({ roomId, player }) => {
+    const { name, avatarImage, phoneNumber } = player; // Destructure player object
+    
     socket.join(roomId);
     
     // Store player info with socket inside the room
     socket.playerInfo = { ...player, socketId: socket.id, score: 0, status: 'waiting', hasAnswered: false };
     
     if (!rooms.has(roomId)) {
-        rooms.set(roomId, { players: new Map(), answersReceived: 0 });
+        rooms.set(roomId, {
+            players: new Map(),
+            answersReceived: 0,
+            matchStartTime: Date.now() + 10000 // Start 10s from now
+        });
     }
+
     const roomState = rooms.get(roomId);
-    roomState.players.set(socket.id, socket.playerInfo);
+    roomState.players.set(socket.id, {
+        id: socket.id,
+        name,
+        score: 0,
+        avatarImage,
+        hasAnswered: false,
+        phoneNumber: phoneNumber || 'N/A' // Capture phone number for Sheets
+    });
 
-    console.log(`Player ${player.name} joined room ${roomId}`);
-
-    // Broadcast updated player list to everyone in the room
-    io.to(roomId).emit('room_state_update', Array.from(roomState.players.values()));
+    console.log(`User ${socket.id} (${name}) joined room ${roomId}`);
+    
+    // Broadcast updated player list and the synced timer
+    io.to(roomId).emit('room_state_update', {
+        players: Array.from(roomState.players.values()),
+        matchStartTime: roomState.matchStartTime
+    });
   });
 
   socket.on('submit_answer', ({ roomId, score }) => {
@@ -86,6 +109,39 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('game_finished', async ({ roomId }) => {
+    if (rooms.has(roomId)) {
+        const roomState = rooms.get(roomId);
+        console.log(`Room ${roomId}: Game finished. Sending results to Google Sheets.`);
+        
+        // Convert Map to Array and Sort to calculate ranks
+        const playersArr = Array.from(roomState.players.values());
+        playersArr.sort((a, b) => b.score - a.score);
+        
+        const webhookUrl = 'https://script.google.com/macros/s/AKfycby_vkQ1rC7WjP3WV-vmFOcgc0ch5yPY0VnJbZ-ncULvXu-E5owqkZgSoC15EpJPa0Y/exec';
+        
+        // Use Promise.all to send all players asynchronously without blocking
+        Promise.all(playersArr.map((player, index) => {
+             const payload = {
+                room: roomId,
+                playerName: player.name,
+                phoneNumber: player.phoneNumber,
+                score: player.score,
+                rank: index + 1
+            };
+            
+            return fetch(webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(e => console.error("Webhook POST failed:", e));
+        })).then(() => console.log(`Room ${roomId}: All results sent.`));
+
+        // Clean up room after game finishes
+        rooms.delete(roomId);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
     for (const [roomId, roomState] of rooms.entries()) {
@@ -101,7 +157,10 @@ io.on('connection', (socket) => {
             if (roomState.players.size === 0) {
               rooms.delete(roomId);
             } else {
-              io.to(roomId).emit('room_state_update', Array.from(roomState.players.values()));
+              io.to(roomId).emit('room_state_update', {
+                  players: Array.from(roomState.players.values()),
+                  matchStartTime: roomState.matchStartTime
+              });
               
               // Edge case: someone disconnects while we're waiting for ONLY them
               if (roomState.answersReceived >= roomState.players.size && roomState.players.size > 0) {

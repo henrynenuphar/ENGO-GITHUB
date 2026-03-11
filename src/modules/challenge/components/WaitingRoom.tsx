@@ -1,3 +1,5 @@
+declare global { interface Window { __matchStartTime?: number } }
+
 import React, { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -7,7 +9,7 @@ import { socket } from '@/lib/socket'
 import { useAuth } from '@/context/UserContext'
 
 export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string, userAvatarId: string, onStart: () => void }) => {
-    const [timeLeft, setTimeLeft] = useState(15) // Shorter time for demo
+    const [timeLeft, setTimeLeft] = useState<number | null>(null)
     const [players, setPlayers] = useState<any[]>([])
     const { user } = useAuth()
 
@@ -24,8 +26,23 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
             player: { name: user?.name || 'Khách', avatarImage: userAvatarUrl } 
         })
         
-        const handleStateUpdate = (roomPlayers: any[]) => {
-            setPlayers(roomPlayers)
+        const handleStateUpdate = (payload: any) => {
+            // Support both old array format and new object payload { players, matchStartTime }
+            if (Array.isArray(payload)) {
+                setPlayers(payload)
+            } else {
+                setPlayers(payload.players)
+                
+                // Set initial time left based on server timestamp
+                if (payload.matchStartTime) {
+                    const remainingMs = payload.matchStartTime - Date.now()
+                    setTimeLeft(Math.max(0, Math.ceil(remainingMs / 1000)))
+                    
+                    // Store the target time in a ref or just rely on the effect
+                    // We'll use a data attribute on window or just a simple interval
+                    window.__matchStartTime = payload.matchStartTime
+                }
+            }
         }
         
         socket.on('room_state_update', handleStateUpdate)
@@ -38,16 +55,25 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
 
     // Countdown timer
     useEffect(() => {
+        if (timeLeft === null) return;
+        
         if (timeLeft <= 0) {
+            // Slight delay to ensure UI updates before switching
             setTimeout(() => {
                 onStart()
-            }, 1000)
+            }, 500)
             return
         }
 
         const timer = setInterval(() => {
-            setTimeLeft(prev => prev - 1)
-        }, 1000)
+            if (window.__matchStartTime) {
+                const remainingMs = window.__matchStartTime - Date.now()
+                setTimeLeft(Math.max(0, Math.ceil(remainingMs / 1000)))
+            } else {
+                setTimeLeft(prev => (prev !== null ? prev - 1 : 0))
+            }
+        }, 500) // update twice a second for smoother sync
+        
         return () => clearInterval(timer)
     }, [timeLeft, onStart])
 
@@ -73,7 +99,7 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
                 <div className="absolute inset-0 bg-brand-blue/10 animate-ping opacity-20"></div>
                 <Clock className="text-brand-blue mb-2" size={32} />
                 <div className="text-4xl font-black text-slate-800 font-mono tracking-tighter">
-                    {formatTime(timeLeft)}
+                    {timeLeft !== null ? formatTime(timeLeft) : "--:--"}
                 </div>
                 <p className="text-xs font-bold text-brand-blue uppercase tracking-wider mt-1">Bắt đầu sau</p>
             </Card>

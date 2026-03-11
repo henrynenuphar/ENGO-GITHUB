@@ -24,9 +24,9 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
     const bgMusicRef = useRef<HTMLAudioElement | null>(null)
 
     useEffect(() => {
-        bgMusicRef.current = new Audio('/sounds/fun_bg_jungle_user.mp4')
+        bgMusicRef.current = new Audio('/sounds/exciting_bgm.mp3')
         bgMusicRef.current.loop = true
-        bgMusicRef.current.volume = 0.4
+        bgMusicRef.current.volume = 0.5
 
         const playMusic = () => {
             bgMusicRef.current?.play().catch(e => console.log("Audio autoplay blocked", e))
