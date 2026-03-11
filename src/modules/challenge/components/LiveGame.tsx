@@ -20,6 +20,34 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
     const userAvatarUrl = AVATARS.find(a => a.id === userAvatarId)?.image || AVATARS[0].image
     const roomTitle = roomId === 'room_grade_3' ? 'LỚP 3' : roomId === 'room_grade_4' ? 'LỚP 4' : 'LỚP 5'
 
+    // --- Audio Init ---
+    const bgMusicRef = useRef<HTMLAudioElement | null>(null)
+
+    useEffect(() => {
+        bgMusicRef.current = new Audio('/sounds/fun_bg_jungle_user.mp4')
+        bgMusicRef.current.loop = true
+        bgMusicRef.current.volume = 0.4
+
+        const playMusic = () => {
+            bgMusicRef.current?.play().catch(e => console.log("Audio autoplay blocked", e))
+        }
+        playMusic()
+
+        return () => {
+            if (bgMusicRef.current) {
+                bgMusicRef.current.pause()
+                bgMusicRef.current = null
+            }
+        }
+    }, [])
+
+    const playSound = (type: 'correct' | 'wrong') => {
+        const url = type === 'correct' ? '/audio/correct.wav' : '/audio/wrong.wav'
+        const audio = new Audio(url)
+        audio.volume = type === 'correct' ? 0.6 : 0.4
+        audio.play().catch(() => { })
+    }
+
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
     const [timeLeft, setTimeLeft] = useState(15) // 15 seconds per question for live game
     const [score, setScore] = useState(0)
@@ -122,6 +150,9 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
         const question = questions[currentQuestionIndex]
         const isCorrect = answer === question.correctAnswer
 
+        // Play sound effect
+        playSound(isCorrect ? 'correct' : 'wrong')
+
         // Calculate point: 1000 base + 50 * timeLeft
         const points = isCorrect ? 1000 + (timeLeft * 50) : 0
         const newScore = score + points
@@ -134,6 +165,7 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
         if (currentQuestionIndex >= questions.length - 1) {
             // We still want to wait for the leaderboard to show briefly
             setTimeout(() => {
+                if (bgMusicRef.current) bgMusicRef.current.pause()
                 const myFinalRank = getMyFinalRank(newScore)
                 onFinish(newScore, myFinalRank)
             }, 3000) // Delay before moving to result screen
@@ -143,12 +175,14 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
     const handleTimeOut = () => {
         setIsAnswerRevealed(true)
         setWaitingForOthers(true)
+        playSound('wrong')
         
         // Emit 0 points for timeout to unblock the server
         socket.emit('submit_answer', { roomId, score })
 
         if (currentQuestionIndex >= questions.length - 1) {
             setTimeout(() => {
+                if (bgMusicRef.current) bgMusicRef.current.pause()
                 const myFinalRank = getMyFinalRank(score)
                 onFinish(score, myFinalRank)
             }, 3000)
