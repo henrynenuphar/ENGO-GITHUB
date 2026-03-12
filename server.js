@@ -49,8 +49,25 @@ io.on('connection', (socket) => {
     if (!rooms.has(roomId)) {
         rooms.set(roomId, {
             players: new Map(),
-            answersReceived: 0
+            answersReceived: 0,
+            status: 'waiting',
+            timeLeft: 15,
+            timerInterval: null
         });
+
+        // Start countdown for the room
+        const newState = rooms.get(roomId);
+        newState.timerInterval = setInterval(() => {
+            if (newState.timeLeft > 0) {
+                newState.timeLeft -= 1;
+                io.to(roomId).emit('timer_update', newState.timeLeft);
+            } else {
+                // Time's up
+                clearInterval(newState.timerInterval);
+                newState.status = 'playing';
+                io.to(roomId).emit('start_game');
+            }
+        }, 1000);
     }
 
     const roomState = rooms.get(roomId);
@@ -78,6 +95,13 @@ io.on('connection', (socket) => {
     
     // Broadcast updated player list
     io.to(roomId).emit('room_state_update', Array.from(roomState.players.values()));
+
+    // If the game is already playing or starting, tell this player immediately
+    if (roomState.status === 'playing' || roomState.timeLeft === 0) {
+        socket.emit('start_game');
+    } else {
+        socket.emit('timer_update', roomState.timeLeft);
+    }
   });
 
   socket.on('submit_answer', ({ roomId, score }) => {
@@ -142,6 +166,9 @@ io.on('connection', (socket) => {
         })).then(() => console.log(`Room ${roomId}: All results sent.`));
 
         // Clean up room after game finishes
+        if (roomState.timerInterval) {
+            clearInterval(roomState.timerInterval);
+        }
         rooms.delete(roomId);
     }
   });

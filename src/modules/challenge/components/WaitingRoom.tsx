@@ -9,7 +9,7 @@ import { socket } from '@/lib/socket'
 import { useAuth } from '@/context/UserContext'
 
 export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string, userAvatarId: string, onStart: () => void }) => {
-    const [timeLeft, setTimeLeft] = useState(15) // Shorter time for demo
+    const [timeLeft, setTimeLeft] = useState<number | null>(null) // Null until we get server update
     const [players, setPlayers] = useState<any[]>([])
     const { user } = useAuth()
 
@@ -27,38 +27,28 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
         })
         
         const handleStateUpdate = (payload: any) => {
-            // Support both old array format and new object payload just in case server hasn't updated
-            if (Array.isArray(payload)) {
-                setPlayers(payload)
-            } else if (payload.players) {
-                setPlayers(payload.players)
-            }
+            if (Array.isArray(payload)) setPlayers(payload)
+            else if (payload.players) setPlayers(payload.players)
+        }
+        
+        const handleTimerUpdate = (time: number) => {
+            setTimeLeft(time)
+        }
+
+        const handleStartGame = () => {
+            onStart()
         }
         
         socket.on('room_state_update', handleStateUpdate)
+        socket.on('timer_update', handleTimerUpdate)
+        socket.on('start_game', handleStartGame)
         
         return () => {
             socket.off('room_state_update', handleStateUpdate)
-            // Note: We don't disconnect here because LiveGame will use the same connection
+            socket.off('timer_update', handleTimerUpdate)
+            socket.off('start_game', handleStartGame)
         }
-    }, [roomId, userAvatarUrl, user?.name])
-
-    // Countdown timer
-    useEffect(() => {
-        if (timeLeft <= 0) {
-            // Slight delay to ensure UI updates before switching
-            setTimeout(() => {
-                onStart()
-            }, 500)
-            return
-        }
-
-        const timer = setInterval(() => {
-            setTimeLeft(prev => prev - 1)
-        }, 1000)
-        
-        return () => clearInterval(timer)
-    }, [timeLeft, onStart])
+    }, [roomId, userAvatarUrl, user?.name, onStart])
 
     const formatTime = (seconds: number) => {
         const m = Math.floor(Math.max(0, seconds) / 60)
@@ -82,7 +72,7 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
                 <div className="absolute inset-0 bg-brand-blue/10 animate-ping opacity-20"></div>
                 <Clock className="text-brand-blue mb-2" size={32} />
                 <div className="text-4xl font-black text-slate-800 font-mono tracking-tighter">
-                    {formatTime(timeLeft)}
+                    {timeLeft !== null ? formatTime(timeLeft) : "--:--"}
                 </div>
                 <p className="text-xs font-bold text-brand-blue uppercase tracking-wider mt-1">Bắt đầu sau</p>
             </Card>
@@ -119,9 +109,9 @@ export const WaitingRoom = ({ roomId, userAvatarId, onStart }: { roomId: string,
             {/* Action */}
             <Button 
                 variant="primary" 
-                className={`w-full max-w-sm h-14 text-lg font-black shadow-xl transition-all ${timeLeft <= 0 ? 'bg-brand-blue shadow-blue-500/30 wiggling' : 'bg-slate-300 text-slate-500 opacity-50'}`}
+                className={`w-full max-w-sm h-14 text-lg font-black shadow-xl transition-all ${timeLeft !== null && timeLeft <= 0 ? 'bg-brand-blue shadow-blue-500/30 wiggling' : 'bg-slate-300 text-slate-500 opacity-50'}`}
             >
-                {timeLeft > 0 ? 'CHỜ ĐỢI...' : 'CHUẨN BỊ VÀO PHÒNG!'}
+                {timeLeft !== null && timeLeft > 0 ? 'CHỜ ĐỢI...' : 'CHUẨN BỊ VÀO PHÒNG!'}
             </Button>
 
             <style dangerouslySetInnerHTML={{

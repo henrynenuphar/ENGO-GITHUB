@@ -124,8 +124,8 @@ export const LiveGame = ({ roomId, userAvatarId, onFinish }: { roomId: string, u
         const question = questions[currentQuestionIndex]
         const isCorrect = answer === question.correctAnswer
 
-        // Calculate point: 1000 base + 50 * timeLeft
-        const points = isCorrect ? 1000 + (timeLeft * 50) : 0
+        // Calculate point: 1000 base + 100 * timeLeft (heavily rewards speed)
+        const points = isCorrect ? 1000 + (timeLeft * 100) : 0
         const newScore = score + points
         setScore(newScore)
         
